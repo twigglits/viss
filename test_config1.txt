@@ -1583,10 +1583,6 @@ $SIMPACT_DATA_DIR = ./data/
 population.coarsemap.subdivx                                 = 20
 population.coarsemap.subdivy                                 = 20
 
-# This parameter is used to set the distribution of subject willing to accept AGYW treatment
-# and to enable or disable the AGYW event.
-# Valid values are: ['true', 'false']
-EventAGYW.enabled                                            = false
 
 # Indicates the time interval before death that the AIDS stages occur
 # The defaults are 15 and 6 months before death
@@ -1638,27 +1634,6 @@ conception.wsf.dist.type                                     = fixed
 # Each time a value is picked from this 'distribution', the specified fixed 
 # value is returned.
 conception.wsf.dist.fixed.value                              = 0
-
-# This parameter is used to set the distribution of subject willing to accept Condom treatment
-# and to enable or disable the Condom event.
-# Valid values are: ['true', 'false']
-EventCondom.enabled                                          = false
-EventCondom.AGYWthreshold                                    = 0.8
-EventCondom.threshold                                        = 0.8
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventCondom.m_condomprobDist.dist.type                       = uniform
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventCondom.m_condomscheduleDist.dist.type                   = uniform
-
-# The following depends on EventCondom.m_condomprobDist.dist.type = uniform
-# Parameters for a uniform distribution
-EventCondom.m_condomprobDist.dist.uniform.min                = 0
-EventCondom.m_condomprobDist.dist.uniform.max                = 1
-
-# The following depends on EventCondom.m_condomscheduleDist.dist.type = uniform
-# Parameters for a uniform distribution
-EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
-EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
 
 # Age at which a person becomes sexually active and can form
 # relationships
@@ -2008,39 +1983,6 @@ periodiclogging.interval                                     = 0.25
 periodiclogging.starttime                                    = -1
 periodiclogging.outfile.logperiodic                          = ${SIMPACT_OUTPUT_PREFIX}periodiclog.csv
 
-# This parameter is used to set the distribution of subject willing to accept VMMC treatment
-# and to enable or disable the VMMC event.
-# Valid values are: ['true', 'false']
-EventPrep.enabled                                            = false
-EventPrep.threshold                                          = 1
-EventPrep.AGYWthreshold                                      = 0.5
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventPrep.m_prepprobDist.dist.type                           = uniform
-
-# Distribution to schedule dropout of prep intervention.
-EventPrepDrop.threshold                                      = 1
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventPrepDrop.interval.dist.type                             = uniform
-
-# The following depends on EventPrepDrop.interval.dist.type = uniform
-# Parameters for a uniform distribution
-EventPrepDrop.interval.dist.uniform.min                      = 0
-EventPrepDrop.interval.dist.uniform.max                      = 1
-
-# The following depends on EventPrep.m_prepprobDist.dist.type = uniform
-# Parameters for a uniform distribution
-EventPrep.m_prepprobDist.dist.uniform.min                    = 0
-EventPrep.m_prepprobDist.dist.uniform.max                    = 1
-
-# This parameter is used to specify the VMMC scheduling duration. The default is fixed.
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventPrep.m_prepscheduleDist.dist.type                       = fixed
-
-# The following depends on EventPrep.m_prepscheduleDist.dist.type = fixed
-# Each time a value is picked from this 'distribution', the specified fixed 
-# value is returned.
-EventPrep.m_prepscheduleDist.dist.fixed.value                = 0.246575
-
 # TODO
 relocation.enabled                                           = no
 
@@ -2063,30 +2005,6 @@ syncpopstats.interval                                        = -1
 # recalculated after firing this event, so very frequent updates of this
 # reference time can slow down the simulation considerably.
 syncrefyear.interval                                         = 1
-
-# This parameter is used to set the distribution of subject willing to accept VMMC treatment
-# and to enable or disable the VMMC event.
-# Valid values are: ['true', 'false']
-EventVMMC.enabled                                            = false
-EventVMMC.threshold                                          = 0.3
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventVMMC.m_vmmcprobDist.dist.type                           = uniform
-
-# The following depends on EventVMMC.m_vmmcprobDist.dist.type = uniform
-# Parameters for a uniform distribution
-EventVMMC.m_vmmcprobDist.dist.uniform.min                    = 0
-EventVMMC.m_vmmcprobDist.dist.uniform.max                    = 1
-
-# This parameter is used to specify the VMMC scheduling duration. The default is fixed.
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventVMMC.m_vmmcscheduleDist.dist.type                       = discrete.csv.twocol
-
-# The following depends on EventVMMC.m_vmmcscheduleDist.dist.type = discrete.csv.twocol
-# TODO
-EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.file   = ../distribution/vmmc_schedule_twocol_0_0.csv
-EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.xcolumn = 1
-EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.ycolumn = 2
-EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.floor  = no
 
 logsystem.outfile.logevents                                  = ${SIMPACT_OUTPUT_PREFIX}eventlog.csv
 logsystem.outfile.logpersons                                 = ${SIMPACT_OUTPUT_PREFIX}personlog.csv
@@ -2334,7 +2252,7 @@ population.numwomen                                          = 1000
 population.simtime                                           = 71
 
 population.maxevents                                         = -1
-population.agedistfile                                       = ../data/eswatini_1980.csv
+population.agedistfile                                       = ./data/eswatini_1980.csv
 population.msm                                               = no
 
 # If set to 1, formation events will be scheduled for all man,woman
@@ -2344,45 +2262,134 @@ population.msm                                               = no
 # only used in the initial scheduling of formation events, but also 
 # when a debut event fires, to limit the newly scheduled formation events.
 population.eyecap.fraction                                   = 0.2
-EventAGYW.agywage                                            = 25
-EventDVR.m_DVRprobDist.dist.type                             = uniform
-EventDVR.m_DVRprobDist.dist.uniform.max                      = 1
-EventDVR.m_DVRprobDist.dist.uniform.min                      = 0
-EventDVR.enabled                                             = false
-EventDVR.threshold                                           = 0.5
 
-EventDVRDROP.enabled                                         = false
-EventDVRDROP.threshold                                       = 0.1
-hivtransmission.param.p1                                     = -0.5
+# This parameter is used to set the distribution of subject willing to accept AGYW treatment
+# and to enable or disable the AGYW event.
+# Valid values are: ['true', 'false']
+#EventAGYW.enabled                                            = false
 
-EventDVRDROP.m_DVRDROPprobDist.dist.type                     = uniform
-EventDVRDROP.m_DVRDROPprobDist.dist.uniform.max              = 1
-EventDVRDROP.m_DVRDROPprobDist.dist.uniform.min              = 0
+#EventAGYW.agywage                                            = 25
+#EventDVR.m_DVRprobDist.dist.type                             = uniform
+#EventDVR.m_DVRprobDist.dist.uniform.max                      = 1
+#EventDVR.m_DVRprobDist.dist.uniform.min                      = 0
+#EventDVR.enabled                                             = false
+#EventDVR.threshold                                           = 0.5
+#
+#EventDVRDROP.enabled                                         = false
+#EventDVRDROP.threshold                                       = 0.1
+#hivtransmission.param.p1                                     = -0.5
+#
+#EventDVRDROP.m_DVRDROPprobDist.dist.type                     = uniform
+#EventDVRDROP.m_DVRDROPprobDist.dist.uniform.max              = 1
+#EventDVRDROP.m_DVRDROPprobDist.dist.uniform.min              = 0
+#
+#
+##-------------------------
+#EventCAB.m_CABprobDist.dist.type                             = uniform
+#EventCAB.m_CABprobDist.dist.uniform.max                      = 1
+#EventCAB.m_CABprobDist.dist.uniform.min                      = 0
+#EventCAB.enabled                                             = false
+#EventCAB.threshold                                           = 0.5
+#
+#EventCABDROP.enabled                                         = false
+#EventCABDROP.threshold                                       = 0.1
+#hivtransmission.param.p2                                     = -0.5
+#
+#EventCABDROP.m_CABDROPprobDist.dist.type                     = uniform
+#EventCABDROP.m_CABDROPprobDist.dist.uniform.max              = 1
+#EventCABDROP.m_CABDROPprobDist.dist.uniform.min              = 0
+#
+#EventDVRDROP.m_DVRDROPscheduleDist.dist.type                 = uniform
+#EventDVRDROP.m_DVRDROPscheduleDist.dist.uniform.min          = 0
+#EventDVRDROP.m_DVRDROPscheduleDist.dist.uniform.max          = 1
+#
+#EventCAB.m_CABscheduleDist.dist.type = uniform
+#EventCAB.m_CABscheduleDist.dist.uniform.min = 0
+#EventCAB.m_CABscheduleDist.dist.uniform.max = 1
+#
+#EventCABDROP.m_CABDROPschedDist.dist.type                    = uniform
+#EventCABDROP.m_CABDROPschedDist.dist.uniform.min             = 0
+#EventCABDROP.m_CABDROPschedDist.dist.uniform.max             = 1
 
+# This parameter is used to set the distribution of subject willing to accept Condom treatment
+# and to enable or disable the Condom event.
+# Valid values are: ['true', 'false']
+#EventCondom.enabled                                          = false
+#EventCondom.AGYWthreshold                                    = 0.8
+#EventCondom.threshold                                        = 0.8
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventCondom.m_condomprobDist.dist.type                       = uniform
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventCondom.m_condomscheduleDist.dist.type                   = uniform
 
-#-------------------------
-EventCAB.m_CABprobDist.dist.type                             = uniform
-EventCAB.m_CABprobDist.dist.uniform.max                      = 1
-EventCAB.m_CABprobDist.dist.uniform.min                      = 0
-EventCAB.enabled                                             = false
-EventCAB.threshold                                           = 0.5
+# The following depends on EventCondom.m_condomprobDist.dist.type = uniform
+# Parameters for a uniform distribution
+#EventCondom.m_condomprobDist.dist.uniform.min                = 0
+#EventCondom.m_condomprobDist.dist.uniform.max                = 1
 
-EventCABDROP.enabled                                         = false
-EventCABDROP.threshold                                       = 0.1
-hivtransmission.param.p2                                     = -0.5
+# The following depends on EventCondom.m_condomscheduleDist.dist.type = uniform
+# Parameters for a uniform distribution
+#EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
+#EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
+#EventCondom.m_condomprobDist.dist.uniform.min                = 0
+#EventCondom.m_condomprobDist.dist.uniform.max                = 1
 
-EventCABDROP.m_CABDROPprobDist.dist.type                     = uniform
-EventCABDROP.m_CABDROPprobDist.dist.uniform.max              = 1
-EventCABDROP.m_CABDROPprobDist.dist.uniform.min              = 0
+# The following depends on EventCondom.m_condomscheduleDist.dist.type = uniform
+# Parameters for a uniform distribution
+#EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
+#EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
 
-EventDVRDROP.m_DVRDROPscheduleDist.dist.type                 = uniform
-EventDVRDROP.m_DVRDROPscheduleDist.dist.uniform.min          = 0
-EventDVRDROP.m_DVRDROPscheduleDist.dist.uniform.max          = 1
+# Valid values are: ['true', 'false']
+#EventPrep.enabled                                            = false
+#EventPrep.threshold                                          = 1
+#EventPrep.AGYWthreshold                                      = 0.5
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventPrep.m_prepprobDist.dist.type                           = uniform
 
-EventCAB.m_CABscheduleDist.dist.type = uniform
-EventCAB.m_CABscheduleDist.dist.uniform.min = 0
-EventCAB.m_CABscheduleDist.dist.uniform.max = 1
+# Distribution to schedule dropout of prep intervention.
+#EventPrepDrop.threshold                                      = 1
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventPrepDrop.interval.dist.type                             = uniform
 
-EventCABDROP.m_CABDROPschedDist.dist.type                    = uniform
-EventCABDROP.m_CABDROPschedDist.dist.uniform.min             = 0
-EventCABDROP.m_CABDROPschedDist.dist.uniform.max             = 1
+# The following depends on EventPrepDrop.interval.dist.type = uniform
+# Parameters for a uniform distribution
+#EventPrepDrop.interval.dist.uniform.min                      = 0
+#EventPrepDrop.interval.dist.uniform.max                      = 1
+
+# The following depends on EventPrep.m_prepprobDist.dist.type = uniform
+# Parameters for a uniform distribution
+#EventPrep.m_prepprobDist.dist.uniform.min                    = 0
+#EventPrep.m_prepprobDist.dist.uniform.max                    = 1
+
+# This parameter is used to specify the VMMC scheduling duration. The default is fixed.
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventPrep.m_prepscheduleDist.dist.type                       = fixed
+
+# The following depends on EventPrep.m_prepscheduleDist.dist.type = fixed
+# Each time a value is picked from this 'distribution', the specified fixed 
+# value is returned.
+#EventPrep.m_prepscheduleDist.dist.fixed.value                = 0.246575
+
+# This parameter is used to set the distribution of subject willing to accept VMMC treatment
+# and to enable or disable the VMMC event.
+# Valid values are: ['true', 'false']
+#EventVMMC.enabled                                            = false
+#EventVMMC.threshold                                          = 0.3
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventVMMC.m_vmmcprobDist.dist.type                           = uniform
+
+# The following depends on EventVMMC.m_vmmcprobDist.dist.type = uniform
+# Parameters for a uniform distribution
+#EventVMMC.m_vmmcprobDist.dist.uniform.min                    = 0
+#EventVMMC.m_vmmcprobDist.dist.uniform.max                    = 1
+
+# This parameter is used to specify the VMMC scheduling duration. The default is fixed.
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#EventVMMC.m_vmmcscheduleDist.dist.type                       = discrete.csv.twocol
+
+# The following depends on EventVMMC.m_vmmcscheduleDist.dist.type = discrete.csv.twocol
+# TODO
+#EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.file   = ../distribution/vmmc_schedule_twocol_0_0.csv
+#EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.xcolumn = 1
+#EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.ycolumn = 2
+#EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.floor  = no
