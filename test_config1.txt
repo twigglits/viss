@@ -1891,13 +1891,6 @@ monitoring.interval.piecewise.right                          = 0.5
 # set-point viral load: t_surv = C/Vsp^(-k) + art_e
 mortality.aids.survtime.C                                    = 65
 mortality.aids.survtime.k                                    = -0.2
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-mortality.aids.survtime.art_e.dist.type                      = uniform
-
-# The following depends on mortality.aids.survtime.art_e.dist.type = uniform
-# Parameters for a uniform distribution
-mortality.aids.survtime.art_e.dist.uniform.min               = 5
-mortality.aids.survtime.art_e.dist.uniform.max               = 25
 
 # Parameters for the weibull distribution from which a non-aids
 # time of death is picked.
@@ -2355,3 +2348,11 @@ population.eyecap.fraction                                   = 0.2
 #monitoring.m_artDist.dist.normal.sigma                       = 0.2
 #monitoring.m_artDist.dist.normal.min                         = 0.15
 #monitoring.m_artDist.dist.normal.max                         = 0.75
+
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#mortality.aids.survtime.art_e.dist.type                      = uniform
+
+# The following depends on mortality.aids.survtime.art_e.dist.type = uniform
+# Parameters for a uniform distribution
+#mortality.aids.survtime.art_e.dist.uniform.min               = 5
+#mortality.aids.survtime.art_e.dist.uniform.max               = 25
