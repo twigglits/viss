@@ -1,0 +1,2 @@
+EventVMMC.enabled = true
+EventVMMC.threshold = 0.3

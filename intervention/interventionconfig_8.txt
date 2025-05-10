@@ -1,0 +1,2 @@
+diagnosis.baseline = -1.2077705488991757
+person.art.accept.threshold.dist.fixed.value = 0.6
