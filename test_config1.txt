@@ -357,48 +357,6 @@ $SIMPACT_DATA_DIR = ./data/
 # hsv2seed.amount
 # hsv2seed.stop.short
 #
-# The following depends on monitoring.m_artDist.dist.type = beta
-# monitoring.m_artDist.dist.beta.a
-# monitoring.m_artDist.dist.beta.b
-# monitoring.m_artDist.dist.beta.min
-# monitoring.m_artDist.dist.beta.max
-#
-# The following depends on monitoring.m_artDist.dist.type = discrete.csv.onecol
-# monitoring.m_artDist.dist.discrete.csv.onecol.file
-# monitoring.m_artDist.dist.discrete.csv.onecol.xmin
-# monitoring.m_artDist.dist.discrete.csv.onecol.xmax
-# monitoring.m_artDist.dist.discrete.csv.onecol.ycolumn
-# monitoring.m_artDist.dist.discrete.csv.onecol.floor
-#
-# The following depends on monitoring.m_artDist.dist.type = discrete.csv.twocol
-# monitoring.m_artDist.dist.discrete.csv.twocol.file
-# monitoring.m_artDist.dist.discrete.csv.twocol.xcolumn
-# monitoring.m_artDist.dist.discrete.csv.twocol.ycolumn
-# monitoring.m_artDist.dist.discrete.csv.twocol.floor
-#
-# The following depends on monitoring.m_artDist.dist.type = discrete.inline
-# monitoring.m_artDist.dist.discrete.inline.xvalues
-# monitoring.m_artDist.dist.discrete.inline.yvalues
-# monitoring.m_artDist.dist.discrete.inline.floor
-#
-# The following depends on monitoring.m_artDist.dist.type = exponential
-# monitoring.m_artDist.dist.exponential.lambda
-#
-# The following depends on monitoring.m_artDist.dist.type = fixed
-# monitoring.m_artDist.dist.fixed.value
-#
-# The following depends on monitoring.m_artDist.dist.type = gamma
-# monitoring.m_artDist.dist.gamma.a
-# monitoring.m_artDist.dist.gamma.b
-#
-# The following depends on monitoring.m_artDist.dist.type = lognormal
-# monitoring.m_artDist.dist.lognormal.zeta
-# monitoring.m_artDist.dist.lognormal.sigma
-#
-# The following depends on monitoring.m_artDist.dist.type = uniform
-# monitoring.m_artDist.dist.uniform.min
-# monitoring.m_artDist.dist.uniform.max
-#
 # The following depends on mortality.aids.survtime.art_e.dist.type = beta
 # mortality.aids.survtime.art_e.dist.beta.a
 # mortality.aids.survtime.art_e.dist.beta.b
@@ -1657,9 +1615,6 @@ diagnosis.diagpartnersfactor                                 = 0
 diagnosis.isdiagnosedfactor                                  = 0
 diagnosis.beta                                               = 0
 diagnosis.HSV2factor                                         = 0
-diagnosis.eagernessfactor                                    = 0.0219578
-diagnosis.pregnancyfactor                                    = 0
-diagnosis.AGYWfactor                                         = 0
 diagnosis.t_max                                              = 200
 
 # These are the parameters for the hazard in the dissolution event.
@@ -1783,20 +1738,8 @@ hivtransmission.param.f1                                     = 2.55246456
 hivtransmission.param.f2                                     = -0.13862944
 hivtransmission.param.g1                                     = 0
 hivtransmission.param.g2                                     = 0
-hivtransmission.param.v1                                     = -0.916
-hivtransmission.param.k                                      = -1.6094
-hivtransmission.param.p                                      = -1.6094
-hivtransmission.threshold                                    = 0.3
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-hivtransmission.m_condomformationdist.dist.type              = discrete.csv.twocol
 hivtransmission.maxageref.diff                               = 1
-
-# The following depends on hivtransmission.m_condomformationdist.dist.type = discrete.csv.twocol
-# TODO
-hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.file = ../distribution/relationship_condom_use_1.csv
-hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.xcolumn = 1
-hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.ycolumn = 2
-hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.floor = yes
 
 # Controls when the initial HSV2 seeders are introduced, and who those seeders
 # are. First, the possible seeders are chosen from the population, based on the
@@ -1831,8 +1774,6 @@ hsv2transmission.hazard.c                                    = 0
 hsv2transmission.hazard.d                                    = 0
 hsv2transmission.hazard.e1                                   = 0
 hsv2transmission.hazard.e2                                   = 0
-hsv2transmission.hazard.v2                                   = -0.916
-hsv2transmission.hazard.k2                                   = -1.6094
 hsv2transmission.hazard.t_max                                = 200
 
 # If you enable the intervention event, you need to specify a number of times
@@ -1928,17 +1869,6 @@ intervention.fileids                                           = 1,2,4,5,6,8,10,
 # viral load.
 monitoring.cd4.threshold                                     = 1
 monitoring.fraction.log_viralload                            = 0.3
-# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-monitoring.m_artDist.dist.type                               = normal
-
-# The following depends on monitoring.m_artDist.dist.type = normal
-# Parameters for a clipped normal distribution
-# prob(x) = 1.0/(s*sqrt(2.0*pi)) * exp(- (x-m)^2 / (2.0*s^2))
-# possibly truncated to [min,max] (using rejection sampling)
-monitoring.m_artDist.dist.normal.mu                          = 0.45
-monitoring.m_artDist.dist.normal.sigma                       = 0.2
-monitoring.m_artDist.dist.normal.min                         = 0.15
-monitoring.m_artDist.dist.normal.max                         = 0.75
 
 # These parameters specify the interval with which monitoring events will take
 # place. This is determined by a piecewise linear function, which is a function
@@ -2393,3 +2323,35 @@ population.eyecap.fraction                                   = 0.2
 #EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.xcolumn = 1
 #EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.ycolumn = 2
 #EventVMMC.m_vmmcscheduleDist.dist.discrete.csv.twocol.floor  = no
+
+#diagnosis.AGYWfactor                                         = 0
+
+#diagnosis.eagernessfactor                                    = 0.0219578
+#diagnosis.pregnancyfactor                                    = 0
+
+# The following depends on hivtransmission.m_condomformationdist.dist.type = discrete.csv.twocol
+# TODO
+#hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.file = ../distribution/relationship_condom_use_1.csv
+#hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.xcolumn = 1
+#hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.ycolumn = 2
+#hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.floor = yes
+#hivtransmission.m_condomformationdist.dist.type              = discrete.csv.twocol
+#hivtransmission.param.k                                      = -1.6094
+#hivtransmission.param.v1                                     = -0.916
+#hivtransmission.param.p                                      = -1.6094
+#hivtransmission.threshold                                    = 0.3
+
+#hsv2transmission.hazard.v2                                   = -0.916
+#hsv2transmission.hazard.k2                                   = -1.6094
+
+# Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
+#monitoring.m_artDist.dist.type                               = normal
+
+# The following depends on monitoring.m_artDist.dist.type = normal
+# Parameters for a clipped normal distribution
+# prob(x) = 1.0/(s*sqrt(2.0*pi)) * exp(- (x-m)^2 / (2.0*s^2))
+# possibly truncated to [min,max] (using rejection sampling)
+#monitoring.m_artDist.dist.normal.mu                          = 0.45
+#monitoring.m_artDist.dist.normal.sigma                       = 0.2
+#monitoring.m_artDist.dist.normal.min                         = 0.15
+#monitoring.m_artDist.dist.normal.max                         = 0.75
