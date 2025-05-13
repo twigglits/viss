@@ -23,5 +23,10 @@ cd build && cmake .. && make -j4 && cd ..
 To run the program, you can use the following command:
 
 ```bash
-./build/src/program/simpact-cyan-release test_config1.txt 0 opt -o
+./build/viss-release test_config1.txt 0 opt -o
+```
+
+For debugging our program it is:
+```bash
+./build/viss-debug test_config1.txt 0 opt -o
 ```
