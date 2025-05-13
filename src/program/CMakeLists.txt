@@ -53,5 +53,3 @@ set(SOURCES_SIMPACT
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/../program-common/")
 add_simpact_executable(viss ${SOURCES_SIMPACT})
 install_simpact_executable(viss)
-
-
