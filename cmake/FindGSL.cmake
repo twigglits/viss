@@ -74,24 +74,26 @@ ELSE(WIN32)
 
 		 MESSAGE(STATUS "GSL using gsl-config ${GSL_CONFIG}")
 		 # set CXXFLAGS to be fed into CXX_FLAGS by the user:
-		 EXEC_PROGRAM(${GSL_CONFIG}
-		   ARGS --cflags
-		   OUTPUT_VARIABLE  GSL_CXX_FLAGS )
+		 execute_process(
+		   COMMAND ${GSL_CONFIG} --cflags
+		   OUTPUT_VARIABLE GSL_CXX_FLAGS
+		   OUTPUT_STRIP_TRAILING_WHITESPACE
+		 )
 
 		 # set INCLUDE_DIRS to prefix+include
-		 EXEC_PROGRAM(${GSL_CONFIG}
-		   ARGS --prefix
-		   OUTPUT_VARIABLE GSL_PREFIX)
+		 execute_process(
+		   COMMAND ${GSL_CONFIG} --prefix
+		   OUTPUT_VARIABLE GSL_PREFIX
+		   OUTPUT_STRIP_TRAILING_WHITESPACE
+		 )
 		 SET(GSL_INCLUDE_DIR ${GSL_PREFIX}/include CACHE STRING INTERNAL)
 
 		 # set link libraries and link flags
-
-		 #SET(GSL_LIBRARIES "`${GSL_CONFIG} --libs`")
-
-		 # extract link dirs for rpath
-		 EXEC_PROGRAM(${GSL_CONFIG}
-		   ARGS --libs
-		   OUTPUT_VARIABLE  GSL_CONFIG_LIBS )
+		 execute_process(
+		   COMMAND ${GSL_CONFIG} --libs
+		   OUTPUT_VARIABLE GSL_CONFIG_LIBS
+		   OUTPUT_STRIP_TRAILING_WHITESPACE
+		 )
 		 SET(GSL_LIBRARIES "${GSL_CONFIG_LIBS}")
 
 		 # split off the link dirs (for rpath)

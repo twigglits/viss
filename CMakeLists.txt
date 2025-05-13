@@ -1,9 +1,6 @@
-cmake_minimum_required(VERSION 2.8)
-if (CMAKE_VERSION VERSION_LESS "2.8.12")
-	message("Version is lower than 2.8.12, don't need to set CMP0022")
-else()
-	cmake_policy(SET CMP0022 OLD) # Don't show warning
-endif()
+cmake_minimum_required(VERSION 3.10)
+# The NEW behavior for CMP0022 is to allow targets to work properly with INTERFACE_LINK_LIBRARIES
+cmake_policy(SET CMP0022 NEW)
 
 project(viss)
 set(VERSION 1.0.0)
