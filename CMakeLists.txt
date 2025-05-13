@@ -7,13 +7,13 @@ endif()
 
 project(viss)
 set(VERSION 1.0.0)
-include(${PROJECT_SOURCE_DIR}/cmake/SimpactMacros.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/VissMacros.cmake)
 
-simpact_setup()
+viss_setup()
 
 # This contains the main simpact program
 add_subdirectory(src)
 
-# Install everything from the data dir in e.g. /usr/local/share/simpact-cyan/
+# Install everything from the data dir in e.g. /usr/local/share/simpact-cyan/ @JEAN TODO: change this to 'viss' later.
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/data/ DESTINATION ${CMAKE_INSTALL_PREFIX}/share/simpact-cyan/)
 install(FILES ${PROJECT_SOURCE_DIR}/python/pysimpactcyan.py DESTINATION ${CMAKE_INSTALL_PREFIX}/share/simpact-cyan/python/)
