@@ -11,13 +11,7 @@ VISS is a simulation system for viral infections. It is a C++-based system that 
 To get started with VISS, you will need to have a C++ compiler and CMake installed on your system. You can then clone the repository and build the system with the following  commands:
 
 ```bash
-mkdir build && cd build && cmake .. && make -j4 && cd ..
-```
-
-And then for general running of the build/make pipeline do:
-
-```bash
-cd build && cmake .. && make -j4 && cd ..
+mkdir -p build && cd build && cmake .. && make -j4 && cd ..
 ```
 
 To run the program, you can use the following command:
