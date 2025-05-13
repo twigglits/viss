@@ -9,7 +9,7 @@ VISS is a simulation system for viral infections. It is a C++-based system that 
 ### Installing pre-requisites
 
 ```
-sudo apt-get install -y cmake build-essential libgsl-dev
+sudo apt-get install -y cmake build-essential libgsl-dev libtiff-dev
 ```
 
 ### Getting Started
