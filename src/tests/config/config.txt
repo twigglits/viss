@@ -1,0 +1,4 @@
+test.dist.type = lognormal
+test.dist.lognormal.zeta = 0
+test.dist.lognormal.sigma = 0.25
+
