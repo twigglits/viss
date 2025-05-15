@@ -1,0 +1,65 @@
+{
+  "aidsmortality": {
+    "expected": 412
+  },
+  "aidsstage": {
+    "expected": 423
+  },
+  "birth": {
+    "expected": 2359
+  },
+  "childborn": {
+    "expected": 2359
+  },
+  "chronicstage": {
+    "expected": 588
+  },
+  "conception": {
+    "expected": 2437
+  },
+  "debut": {
+    "expected": 2226
+  },
+  "diagnosis": {
+    "expected": 471
+  },
+  "dissolution": {
+    "expected": 2731
+  },
+  "finalaidsstage": {
+    "expected": 416
+  },
+  "formation": {
+    "expected": 9201
+  },
+  "HIV": {
+    "expected": 0
+  },
+  "intervention": {
+    "expected": 12
+  },
+  "monitoring": {
+    "expected": 3862
+  },
+  "normalmortality": {
+    "expected": 954
+  },
+  "periodiclogging": {
+    "expected": 284
+  },
+  "relationshipended": {
+    "expected": 6742
+  },
+  "seeding": {
+    "expected": 0
+  },
+  "syncrefyear": {
+    "expected": 71
+  },
+  "transmission": {
+    "expected": 574
+  },
+  "treatment": {
+    "expected": 442
+  }
+}
