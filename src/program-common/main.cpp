@@ -7,7 +7,7 @@ bool g_overwriteLogFiles = false;
 #include "person_relations.h"
 #include "simpactpopulation.h"
 #include "configsettings.h"
-//#include "inverseerfi.h"
+#include "inverseerfi.h"
 #include "version.h"
 #include "configutil.h"
 #include "signalhandlers.h"
