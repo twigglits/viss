@@ -208,10 +208,10 @@ if [ "$ALL_MATCH" = true ]; then
         echo -e "\n${RED}FAIL:${NC} Some event counts differ between release and debug versions"
     fi
     
-    # Compare against reference values in stat_out.json
+    # Compare against reference values in stat_out_500.json
     echo -e "\n${BLUE}=== Comparing Actual Counts Against Expected Counts ===${NC}"
     
-    if [ -f "stat_out.json" ]; then
+    if [ -f "stat_out_500.json" ]; then
         REFERENCE_CHECK_PASS=true
         
         # Display header for the reference comparison table
@@ -226,10 +226,10 @@ if [ "$ALL_MATCH" = true ]; then
             # Extract reference values using jq if available, otherwise use grep/sed
             if command -v jq &> /dev/null; then
                 # Using jq (preferred for JSON parsing)
-                reference_count=$(jq -r ".\"$event\"?.expected // 0" stat_out.json)
+                reference_count=$(jq -r ".\"$event\"?.expected // 0" stat_out_500.json)
             else
                 # Fallback to grep/sed for systems without jq
-                reference_count=$(grep -o "\"$event\".*expected.*[0-9]\+" stat_out.json | grep -o '[0-9]\+' | head -1)
+                reference_count=$(grep -o "\"$event\".*expected.*[0-9]\+" stat_out_500.json | grep -o '[0-9]\+' | head -1)
                 if [ -z "$reference_count" ]; then
                     reference_count=0
                 fi
@@ -249,14 +249,14 @@ if [ "$ALL_MATCH" = true ]; then
         
         # Print reference comparison summary
         if [ "$REFERENCE_CHECK_PASS" = true ]; then
-            echo -e "\n${GREEN}PASS:${NC} All event counts match reference values in stat_out.json"
+            echo -e "\n${GREEN}PASS:${NC} All event counts match reference values in stat_out_500.json"
         else
-            echo -e "\n${RED}WARNING:${NC} Some event counts differ from reference values in stat_out.json"
+            echo -e "\n${RED}WARNING:${NC} Some event counts differ from reference values in stat_out_500.json"
             # Don't exit with error yet - this is just a warning at this point
-            echo -e "${BLUE}Note: This indicates potential changes in behavior. Update stat_out.json if these changes are expected.${NC}"
+            echo -e "${BLUE}Note: This indicates potential changes in behavior. Update stat_out_500.json if these changes are expected.${NC}"
         fi
     else
-        echo -e "${BLUE}Reference file stat_out.json not found. Skipping reference comparison.${NC}"
+        echo -e "${BLUE}Reference file stat_out_500.json not found. Skipping reference comparison.${NC}"
     fi
     
     echo -e "\n${GREEN}=== All tests passed! ===${NC}"
