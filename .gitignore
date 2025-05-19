@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+
+# Frontend files
+frontend/*
+app.py
+requirements.txt
