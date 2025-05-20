@@ -43,5 +43,5 @@ Then in another terminal run to pull in the font-end:
 
 To push the font-end:
 ```bash
-bash push_frontend.sh
+./push_frontend.sh
 ```
