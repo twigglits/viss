@@ -28,7 +28,11 @@ GslRandomNumberGenerator::GslRandomNumberGenerator()
 	{
 		uint32_t val;
 
-		fread(&val, 1, sizeof(uint32_t), pRndFile);
+		size_t bytesRead = fread(&val, 1, sizeof(uint32_t), pRndFile);
+		if (bytesRead != sizeof(uint32_t)) {
+			std::cerr << "# WARNING: Could not read full seed from /dev/urandom" << std::endl;
+			val = static_cast<uint32_t>(time(nullptr)); // fallback seed
+		}
 		fclose(pRndFile);
 
 		val &= 0x7fffffff;
