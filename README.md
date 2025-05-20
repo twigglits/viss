@@ -30,3 +30,18 @@ For debugging our program it is:
 ```bash
 ./build/viss-debug test_config1.txt 0 opt -o
 ```
+
+To start-up FastAPI:
+```bash
+uvicorn app:app --reload
+```
+
+Then in another terminal run to pull in the font-end:
+```bash
+./pull_frontend.sh && cd frontend && npm install &&  npx expo start --clear
+```
+
+To push the font-end:
+```bash
+bash push_frontend.sh
+```

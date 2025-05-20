@@ -8,6 +8,10 @@ rm -f app.py requirements.txt
 rm -rf frontend
 # Copy app.py
 cp -v "$FRONTEND_DIR/app.py" ./
+# Copy babel.config.js
+cp -v "$FRONTEND_DIR/babel.config.js" ./
+# Copy nativewind.d.ts
+cp -v "$FRONTEND_DIR/nativewind.d.ts" ./
 # Copy requirements.txt
 cp -v "$FRONTEND_DIR/requirements.txt" ./
 # Copy frontend directory (templates and static)

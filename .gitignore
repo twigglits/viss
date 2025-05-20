@@ -35,3 +35,6 @@
 frontend/*
 app.py
 requirements.txt
+babel.config.js
+nativewind.d.ts
+
