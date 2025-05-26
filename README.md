@@ -38,7 +38,7 @@ uvicorn app:app --reload
 
 Then in another terminal run to pull in the font-end:
 ```bash
-./pull_frontend.sh && cd frontend && npm install &&  npx expo start --clear
+./pull_frontend.sh && cd frontend && npm install && npm run dev
 ```
 
 To push the font-end:
