@@ -45,3 +45,14 @@ To push the font-end:
 ```bash
 ./push_frontend.sh
 ```
+
+### Pre-requisites
+
+- Python 3.10
+- Redis
+- Node.js
+- npm
+- uvicorn
+- CMake
+- GSL
+- TIFF
