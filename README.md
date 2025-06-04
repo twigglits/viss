@@ -36,11 +36,15 @@ To start-up FastAPI:
 uvicorn app:app --reload
 ```
 
-Then in another terminal run to pull in the font-end:
+Then in another terminal run to pull in the font-end and do some local devving:
 ```bash
 ./pull_frontend.sh && cd frontend && npm install && npm run dev
 ```
 
+To gauge performance on a more optimimized local build of the website instance do:
+```bash
+cd frontend && npm run build && serve -s dist
+```
 To push the font-end:
 ```bash
 ./push_frontend.sh
