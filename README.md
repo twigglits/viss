@@ -30,33 +30,3 @@ For debugging our program it is:
 ```bash
 ./build/viss-debug test_config1.txt 0 opt -o
 ```
-
-To start-up FastAPI:
-```bash
-uvicorn app:app --reload
-```
-
-Then in another terminal run to pull in the font-end and do some local devving:
-```bash
-./pull_frontend.sh && cd frontend && npm install && npm run dev
-```
-
-To gauge performance on a more optimimized local build of the website instance do:
-```bash
-cd frontend && npm run build && serve -s dist
-```
-To push the font-end:
-```bash
-./push_frontend.sh
-```
-
-### Pre-requisites
-
-- Python 3.10
-- Redis
-- Node.js
-- npm
-- uvicorn
-- CMake
-- GSL
-- TIFF
