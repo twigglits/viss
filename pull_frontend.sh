@@ -16,5 +16,7 @@ cp -v "$FRONTEND_DIR/nativewind.d.ts" ./
 cp -v "$FRONTEND_DIR/requirements.txt" ./
 # Copy frontend directory (templates and static)
 cp -rv "$FRONTEND_DIR/frontend" ./
+# Copy repo_rate.csv
+cp -v "$FRONTEND_DIR/repo_rate.csv" ./
 
 echo "Frontend files pulled from $FRONTEND_DIR."
