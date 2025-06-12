@@ -144,6 +144,7 @@ void Person::writeToTreatmentLog(double dropoutTime, bool justDied)
 
 Man::Man(double dateOfBirth) : Person(dateOfBirth, Male)
 {
+	m_circum = false;
 }
 
 Man::~Man()

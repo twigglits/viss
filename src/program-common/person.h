@@ -128,6 +128,11 @@ class Man : public Person
 public:
 	Man(double dateOfBirth);
 	~Man();
+
+	void setCircum(bool f) 								{ m_circum = f; }
+	bool isCircum() const									{ return m_circum; } 
+private:
+	bool m_circum;
 };
 
 class Woman : public Person
