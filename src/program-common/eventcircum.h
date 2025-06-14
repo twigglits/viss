@@ -23,12 +23,12 @@ public:
 	static void processConfig(ConfigSettings &config, GslRandomNumberGenerator *pRndGen);
 	static void obtainConfig(ConfigWriter &config);
 private:
-	bool isEligibleForTreatment(double t);
+	bool isEligibleForTreatment(double t, const State *pState);
 	bool isWillingToStartTreatment(double t, GslRandomNumberGenerator *pRndGen);
     double getNewInternalTimeDifference(GslRandomNumberGenerator *pRndGen, const State *pState);
 
-	bool m_CircumEnabled; 
-	double m_CircumThreshold;
+	static bool s_CircumEnabled; 
+	static double s_CircumThreshold;
 
     static ProbabilityDistribution *s_CircumcProbDist;
 };
