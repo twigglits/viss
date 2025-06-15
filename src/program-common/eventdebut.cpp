@@ -4,6 +4,7 @@
 #include "jsonconfig.h"
 #include "configfunctions.h"
 #include "util.h"
+#include "eventcircum.h"
 #include <iostream>
 
 EventDebut::EventDebut(Person *pPerson) : SimpactEvent(pPerson)
@@ -52,6 +53,12 @@ void EventDebut::fire(Algorithm *pAlgorithm, State *pState, double t)
 
 	pPerson->setSexuallyActive(t);
 
+	//kick off event circum here
+	if (pPerson->isMan() && !MAN(pPerson)->isCircum() && EventCircum::s_CircumEnabled)
+	{
+		EventCircum *pEvt = new EventCircum(pPerson);
+		population.onNewEvent(pEvt);
+	}
 	// No relationships will be scheduled if the person is already in the final AIDS stage
 	if (pPerson->hiv().getInfectionStage() != Person_HIV::AIDSFinal)
 		population.initializeFormationEvents(pPerson, false, false, t);
