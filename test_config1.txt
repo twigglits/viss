@@ -1738,6 +1738,7 @@ hivtransmission.param.f1                                     = 2.55246456
 hivtransmission.param.f2                                     = -0.13862944
 hivtransmission.param.g1                                     = 0
 hivtransmission.param.g2                                     = 0
+hivtransmission.param.v1                                    = -0.916
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
 hivtransmission.maxageref.diff                               = 1
 
@@ -2172,13 +2173,21 @@ person.vsp.model.logdist2d.dist2d.binormalsymm.max           = 6
 # when this number of events has been exceeded.
 #population.nummen                                            = 1000
 #population.numwomen                                          = 1000
-population.nummen                                            = 200
-population.numwomen                                          = 200
-population.simtime                                           = 71
+population.nummen = 500
+population.numwomen = 500
+population.simtime = 71
 
 population.maxevents                                         = -1
 population.agedistfile                                       = ./data/eswatini_1980.csv
 population.msm                                               = no
+
+circum.enabled = false
+circum.threshold = 0.5
+circum.probability.dist.type = uniform
+circum.probability.dist.uniform.min = 0
+circum.probability.dist.uniform.max = 1
+
+##EXTRA parameters not yet integrated into backend
 
 # If set to 1, formation events will be scheduled for all man,woman
 # pairs (who are both sexually active). This is the default behaviour.
