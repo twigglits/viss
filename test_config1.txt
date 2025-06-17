@@ -2171,8 +2171,6 @@ person.vsp.model.logdist2d.dist2d.binormalsymm.max           = 6
 # By default, the 'maxevents' parameter is negative, causing it to be
 # ignored. Set this to a positive value to make sure the simulation stops
 # when this number of events has been exceeded.
-#population.nummen                                            = 1000
-#population.numwomen                                          = 1000
 population.nummen = 500
 population.numwomen = 500
 population.simtime = 71
