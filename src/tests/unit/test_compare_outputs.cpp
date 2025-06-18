@@ -1,4 +1,3 @@
-// Google Test-based test for output comparison
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include <gtest/gtest.h>
 #include <fstream>
