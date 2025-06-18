@@ -4,6 +4,10 @@ cmake_policy(SET CMP0022 NEW)
 
 project(viss)
 set(VERSION 1.0.0)
+
+# Enable CTest at the top-level so all subdirectory tests are registered
+enable_testing()
+
 include(${PROJECT_SOURCE_DIR}/cmake/VissMacros.cmake)
 
 viss_setup()

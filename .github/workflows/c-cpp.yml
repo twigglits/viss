@@ -21,5 +21,7 @@ jobs:
     - name: Build project
       run: mkdir -p build && cd build && cmake .. && make -j4 && cd ..
       
-    - name: Run comparison tests
-      run: ./compare_outputs.sh
+    - name: Run C++ comparison tests
+      run: cd build && ctest --output-on-failure
+      
+      #run: ./compare_outputs.sh
