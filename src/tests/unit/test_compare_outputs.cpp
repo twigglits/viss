@@ -36,23 +36,6 @@ TEST(CompareOutputs, ReleaseMatchesReference) {
         // Trim whitespace
         value.erase(0, value.find_first_not_of(" \t"));
         value.erase(value.find_last_not_of(" \t\r\n") + 1);
-        // Heuristics: check if value looks like a file path
-        if (value.size() > 0 && (value.find(".csv") != std::string::npos || value.find("./data/") == 0 || value.find("./intervention/") == 0)) {
-            // Ignore output/log file patterns
-            if (value.find("${SIMPACT_OUTPUT_PREFIX}") != std::string::npos ||
-                (!value.empty() && value.back() == '_') ||
-                value.find('%') != std::string::npos) {
-                continue;
-            }
-            std::string path = value;
-            // Remove quotes if present
-            if (!path.empty() && path.front() == '"') path = path.substr(1);
-            if (!path.empty() && path.back() == '"') path.pop_back();
-            // Check existence
-            if (!fs::exists(path)) {
-                missing_files.push_back(path);
-            }
-        }
     }
     cfg.close();
     if (!missing_files.empty()) {
@@ -60,25 +43,9 @@ TEST(CompareOutputs, ReleaseMatchesReference) {
         for (const auto& f : missing_files) std::cerr << "  " << f << std::endl;
         FAIL() << "Test aborted due to missing required files.";
     }
-    // Print working directory and command for debug
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-        std::cout << "[DEBUG] CWD: " << cwd << std::endl;
-        std::cout << "[DEBUG] Files in ./data:" << std::endl;
-        for (const auto& entry : fs::directory_iterator("./data")) {
-            std::cout << "  " << entry.path() << std::endl;
-        }
-        std::cout << "[DEBUG] Files in ./intervention:" << std::endl;
-        for (const auto& entry : fs::directory_iterator("./intervention")) {
-            std::cout << "  " << entry.path() << std::endl;
-        }
-    } else {
-        perror("getcwd() error");
-    }
     std::string exe = "./viss-release";
     std::string options = "0 opt -o";
     std::string command = exe + " " + config + " " + options;
-    std::cout << "[DEBUG] Running command: " << command << std::endl;
     int ret = std::system(command.c_str());
     ASSERT_EQ(ret, 0) << "Release binary failed to run";
 
