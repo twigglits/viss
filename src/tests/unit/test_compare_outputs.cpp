@@ -87,16 +87,36 @@ TEST(CompareOutputs, ReleaseMatchesReference) {
     boost::property_tree::ptree ref_json;
     boost::property_tree::read_json("stat_out_500.json", ref_json);
 
-    // 4. Load output JSON (assume same name, produced in cwd)
-    boost::property_tree::ptree out_json;
-    boost::property_tree::read_json("stat_out_500.json", out_json);
+    // 4. Parse dev_eventlog.csv and count events in column 2
+    std::ifstream csv("dev_eventlog.csv");
+    ASSERT_TRUE(csv.is_open()) << "Could not open dev_eventlog.csv";
+    std::unordered_map<std::string, int> event_counts;
+    std::string csv_line;
+    while (std::getline(csv, csv_line)) {
+        if (csv_line.empty()) continue;
+        std::istringstream ss(csv_line);
+        std::string field;
+        int col = 0;
+        std::string event;
+        while (std::getline(ss, field, ',')) {
+            if (col == 1) { // 2nd column
+                event = field;
+                break;
+            }
+            ++col;
+        }
+        if (!event.empty()) {
+            ++event_counts[event];
+        }
+    }
+    csv.close();
 
-    // 5. Compare all event types in reference
+    // 5. For each event in the JSON, compare expected to actual count
     for (const auto& ref_pair : ref_json) {
         const std::string& event = ref_pair.first;
         int expected = ref_pair.second.get<int>("expected");
-        ASSERT_TRUE(out_json.find(event) != out_json.not_found()) << "Output missing event: " << event;
-        int actual = out_json.get_child(event).get<int>("expected");
-        EXPECT_EQ(actual, expected) << "Mismatch for event " << event << ": expected " << expected << ", got " << actual;
+        int actual = event_counts[event];
+        EXPECT_EQ(actual, expected) << "Mismatch for event '" << event << "': expected " << expected << ", got " << actual;
     }
+
 }

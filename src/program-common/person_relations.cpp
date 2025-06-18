@@ -193,7 +193,7 @@ void Person_Relations::removeRelationship(Person *pPerson, double t, bool deathB
 		   
 	if (writeToLog)
 	{
-		SimpactEvent::writeEventLogStart(false, "(relationshipended)", t, pPerson1, pPerson2);
+		SimpactEvent::writeEventLogStart(false, "relationshipended", t, pPerson1, pPerson2);
 
 		double formationTime = relation.getFormationTime();
 		LogEvent.print(",formationtime,%10.10f,relationage,%10.10f", formationTime, t-formationTime);

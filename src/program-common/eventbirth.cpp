@@ -70,7 +70,7 @@ void EventBirth::fire(Algorithm *pAlgorithm, State *pState, double t)
 	pMother->addChild(pChild);
 
 	population.addNewPerson(pChild);
-	writeEventLogStart(true, "(childborn)", t, pChild, 0);
+	writeEventLogStart(true, "childborn", t, pChild, 0);
 
 	// TODO!
 	// Currently children are assumed to be non-infected, even if the mother is infected

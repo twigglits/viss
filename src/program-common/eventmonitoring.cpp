@@ -74,7 +74,7 @@ void EventMonitoring::fire(Algorithm *pAlgorithm, State *pState, double t)
 
 	if (isEligibleForTreatment(t) && isWillingToStartTreatment(t, pRndGen))
 	{
-		SimpactEvent::writeEventLogStart(true, "(treatment)", t, pPerson, 0);
+		SimpactEvent::writeEventLogStart(true, "treatment", t, pPerson, 0);
 
 		// Person is starting treatment, no further HIV test events will follow
 		pPerson->hiv().lowerViralLoad(s_treatmentVLLogFrac, t);
