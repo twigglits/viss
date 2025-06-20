@@ -15,7 +15,7 @@ void create_test_config(const std::string& orig, const std::string& test) {
     // Not used in this simple test
 }
 
-TEST(CompareOutputs, ReleaseMatchesReference) {
+TEST(Base, TestBase) {
     // 1. Set environment variable as in the script
     setenv("MNRM_DEBUG_SEED", "7", 1);
 
