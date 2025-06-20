@@ -25,24 +25,17 @@ echo -e "${BLUE}This test compares the output files from release and debug build
 echo ""
 
 # Define paths and filenames
-ORIG_CONFIG="test_config1.txt"
-TEST_CONFIG="test_config1_small.txt"
+# ORIG_CONFIG="test_config1.txt"
+TEST_CONFIG="test_config1.txt"
 RELEASE_EXE="./build/viss-release"
 DEBUG_EXE="./build/viss-debug"
 OPTIONS="0 opt -o"
 RELEASE_PREFIX="release_"
 DEBUG_PREFIX="debug_"
 
-# Create a temporary test config with smaller population
-echo -e "${BLUE}Creating test configuration with smaller population...${NC}"
-cp "$ORIG_CONFIG" "$TEST_CONFIG"
-
 # Replace population sizes with smaller values for faster testing
 sed -i 's/population\.nummen *=.*$/population.nummen = 500/' "$TEST_CONFIG"
 sed -i 's/population\.numwomen *=.*$/population.numwomen = 500/' "$TEST_CONFIG"
-
-echo -e "${GREEN}Updated test configuration:${NC}"
-grep -E "population\.num(men|women)" "$TEST_CONFIG"
 
 # Check if executables exist
 if [ ! -f "$RELEASE_EXE" ]; then
@@ -261,9 +254,9 @@ if [ "$ALL_MATCH" = true ]; then
     
     echo -e "\n${GREEN}=== All tests passed! ===${NC}"
     echo -e "${GREEN}Release and debug versions produce consistent output files with matching record counts${NC}"
-    # Clean up temporary test config and output files
+    # Clean up temporary output files
     echo -e "${BLUE}Cleaning up temporary files...${NC}"
-    rm -f "$TEST_CONFIG"
+    
     
     # Clean up all CSV log files
     echo -e "${BLUE}Cleaning up CSV log files...${NC}"
@@ -284,7 +277,6 @@ else
     echo -e "${RED}Release and debug versions produce inconsistent output files${NC}"
     # Clean up temporary test config and output files even on failure
     echo -e "${BLUE}Cleaning up temporary files...${NC}"
-    rm -f "$TEST_CONFIG"
     
     # Clean up all CSV log files
     echo -e "${BLUE}Cleaning up CSV log files...${NC}"
