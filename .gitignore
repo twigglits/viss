@@ -38,3 +38,6 @@ requirements.txt
 babel.config.js
 nativewind.d.ts
 
+# VS Code
+.vscode
+
