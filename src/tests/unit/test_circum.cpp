@@ -18,8 +18,9 @@ void create_test_config(const std::string& orig, const std::string& test) {
 TEST(Circumcision, TestCircumcision) {
     // 1. Set environment variable as in the script
     setenv("MNRM_DEBUG_SEED", "7", 1);
-
-    // 2. Prepare a config file with circum.enabled = true
+    // 2. Set static expected values file for comparison.
+    std::string stat_out = "stat_out_circum_500.json";
+    // 3. Prepare a config file with circum.enabled = true
     std::string orig_config = "test_config1.txt";
     std::string temp_config = "test_config1_circum_enabled.txt";
     std::ifstream cfg_in(orig_config);
@@ -50,7 +51,7 @@ TEST(Circumcision, TestCircumcision) {
 
     // 3. Load reference JSON using Boost.PropertyTree
     boost::property_tree::ptree ref_json;
-    boost::property_tree::read_json("stat_out_circum_500.json", ref_json);
+    boost::property_tree::read_json(stat_out, ref_json);
 
     // 4. Parse dev_eventlog.csv and count events in column 2
     std::ifstream csv("dev_eventlog.csv");
