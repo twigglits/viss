@@ -18,22 +18,22 @@
     "expected": 595
   },
   "conception": {
-    "expected": 2438
+    "expected": 2843
   },
   "debut": {
-    "expected": 2226
+    "expected": 2457
   },
   "diagnosis": {
-    "expected": 471
+    "expected": 341
   },
   "dissolution": {
-    "expected": 2731
+    "expected": 3210
   },
   "finalaidsstage": {
-    "expected": 416
+    "expected": 285
   },
   "formation": {
-    "expected": 9201
+    "expected": 10562
   },
   "HIV": {
     "expected": 0
@@ -42,16 +42,16 @@
     "expected": 12
   },
   "monitoring": {
-    "expected": 3862
+    "expected": 2826
   },
   "normalmortality": {
-    "expected": 954
+    "expected": 1084
   },
   "periodiclogging": {
     "expected": 284
   },
   "relationshipended": {
-    "expected": 6742
+    "expected": 7360
   },
   "seeding": {
     "expected": 0
@@ -60,9 +60,9 @@
     "expected": 71
   },
   "transmission": {
-    "expected": 574
+    "expected": 397
   },
   "treatment": {
-    "expected": 442
+    "expected": 318
   }
 }
