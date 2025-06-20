@@ -40,7 +40,7 @@ target_link_libraries(test_circum PRIVATE gtest_main Boost::system Boost::filesy
 # Add test
 # Copy required files to build dir so test can find them
 configure_file(${CMAKE_SOURCE_DIR}/test_config1.txt ${CMAKE_BINARY_DIR}/test_config1.txt COPYONLY)
-configure_file(${CMAKE_SOURCE_DIR}/stat_out_500.json ${CMAKE_BINARY_DIR}/stat_out_500.json COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/stat_out_base_500.json ${CMAKE_BINARY_DIR}/stat_out_base_500.json COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/stat_out_circum_500.json ${CMAKE_BINARY_DIR}/stat_out_circum_500.json COPYONLY)
 file(COPY ${CMAKE_SOURCE_DIR}/data DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/intervention DESTINATION ${CMAKE_BINARY_DIR})

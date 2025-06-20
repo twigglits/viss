@@ -19,7 +19,9 @@ TEST(Base, TestBase) {
     // 1. Set environment variable as in the script
     setenv("MNRM_DEBUG_SEED", "7", 1);
 
-    // 2. Check for all files referenced in test_config1.txt
+    // 2. Set static expected values file for comparison.
+    std::string stat_out = "stat_out_base_500.json";
+    // 3. Check for all files referenced in test_config1.txt
     std::string config = "test_config1.txt";
     std::ifstream cfg(config);
     ASSERT_TRUE(cfg.is_open()) << "Could not open config file: " << config;
@@ -51,7 +53,7 @@ TEST(Base, TestBase) {
 
     // 3. Load reference JSON using Boost.PropertyTree
     boost::property_tree::ptree ref_json;
-    boost::property_tree::read_json("stat_out_500.json", ref_json);
+    boost::property_tree::read_json(stat_out, ref_json);
 
     // 4. Parse dev_eventlog.csv and count events in column 2
     std::ifstream csv("dev_eventlog.csv");
