@@ -1,0 +1,28 @@
+# Ignore frontend files and directories
+app.py
+babel.config.js
+nativewind.d.ts
+frontend/
+repo_rate.csv
+requirements.txt
+
+# Ignore dev and editor configs
+.vscode/
+.github/
+.git/
+.gitignore
+__pycache__/
+
+# Ignore logs and test outputs
+*.csv
+*.log
+
+# Keep backend source, configs, and build system
+!src/
+!CMakeLists.txt
+!Dockerfile
+!intervention/
+!build/
+!cmake/
+!data/
+!test_config1.txt
