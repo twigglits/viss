@@ -1,6 +1,6 @@
 | Badges     |  |
 |------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Build      | [![Build Status](https://github.com/twigglits/viss/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/twigglits/viss/actions/workflows/c-cpp.yml) |
+| Build      | [![C/C++ CI](https://github.com/twigglits/viss/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/twigglits/viss/actions/workflows/c-cpp.yml) |
 
 ### Viral Infection Simulation System (VISS)
 
