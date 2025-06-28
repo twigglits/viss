@@ -2,7 +2,7 @@ name: Auto Release
 
 on:
   workflow_run:
-    workflows: ["C/C++ CI"]
+    workflows: "C/C++ CI"
     types:
       - completed
 
