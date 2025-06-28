@@ -15,10 +15,6 @@ RUN apt-get update && \
 # Set workdir
 WORKDIR /app
 
-# Copy requirements and install Python dependencies (if any)
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Copy the rest of the codebase
 COPY . .
 

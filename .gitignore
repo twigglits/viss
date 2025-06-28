@@ -32,11 +32,11 @@
 *.app
 
 # Frontend files
-frontend/*
-app.py
-requirements.txt
-babel.config.js
-nativewind.d.ts
+# frontend/*
+# app.py
+# requirements.txt
+# babel.config.js
+# nativewind.d.ts
 
 # VS Code
 .vscode
