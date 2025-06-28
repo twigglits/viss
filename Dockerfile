@@ -17,9 +17,3 @@ WORKDIR /app
 
 # Copy the rest of the codebase
 COPY . .
-
-# Expose the port uvicorn will run on (default 8000)
-EXPOSE 8000
-
-# Default command (can be overridden)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
