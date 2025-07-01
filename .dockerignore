@@ -3,6 +3,7 @@ app.py
 babel.config.js
 nativewind.d.ts
 frontend/
+build/
 repo_rate.csv
 requirements.txt
 
@@ -22,7 +23,6 @@ __pycache__/
 !CMakeLists.txt
 !Dockerfile
 !intervention/
-!build/
 !cmake/
 !data/
 !test_config1.txt
