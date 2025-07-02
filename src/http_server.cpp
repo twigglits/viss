@@ -19,6 +19,22 @@ int main() {
         return crow::response(output);
     });
 
+    // Serve dev_eventlog.csv as text/csv
+    CROW_ROUTE(app, "/get-eventlog")([](const crow::request& req){
+        std::ifstream file("dev_eventlog.csv", std::ios::binary);
+        if (!file) {
+            std::cout << "[viss-api] /get-eventlog requested but dev_eventlog.csv not found!\n";
+            return crow::response(404, "dev_eventlog.csv not found");
+        }
+        std::ostringstream ss;
+        ss << file.rdbuf();
+        crow::response res(ss.str());
+        res.add_header("Content-Type", "text/csv");
+        res.code = 200;
+        std::cout << "[viss-api] /get-eventlog served dev_eventlog.csv (" << ss.str().size() << " bytes)\n";
+        return res;
+    });
+
     app.port(8000).multithreaded().run();
     std::cout << "[viss-api] Crow REST API server stopped.\n";
     return 0;
