@@ -24,4 +24,4 @@ RUN rm -rf build && mkdir -p build && cd build && cmake .. && make -j4 && cd ..
 EXPOSE 8000
 
 # Default command to run the main binary (can be overridden)
-CMD ["./build/viss-release", "test_config1.txt", "0", "opt", "-o"]
+CMD ["./build/viss-api"]
