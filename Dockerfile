@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff-dev \
     libboost-all-dev \
     libasio-dev \
+    libhiredis-dev \
+    libssl-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set workdir
