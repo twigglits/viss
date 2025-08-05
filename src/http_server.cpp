@@ -105,31 +105,50 @@ int main() {
             std::cout << "[LOG] No config update needed." << std::endl;
         }
 
-        // --- Build JSON response ---
-        crow::json::wvalue result;
-        result["success"] = true;
-        result["men"] = men;
-        result["women"] = women;        
-        result["time"] = time;
-        // Try to parse some stats from the output log
-        int start_population = -1, end_population = -1, length_of_time = -1;
-        try {
-            std::smatch match;
-            std::regex start_pop_re("Started with ([0-9]+) people");
-            std::regex end_pop_re("ending with ([0-9]+) ");
-            std::regex time_re("Current simulation time is ([0-9.]+)");
-        } catch (...) {
-            std::cout << "[LOG] Failed to parse stats from output." << std::endl;
+        // --- Run simulation and capture output ---
+        std::string cmd = "./build/viss-release test_config1.txt 0 opt -o 2>&1";
+        std::string output;
+        FILE* pipe = popen(cmd.c_str(), "r");
+        if (!pipe) {
+            crow::json::wvalue res_json;
+            res_json["success"] = false;
+            res_json["error"] = "Failed to run simulation process.";
+            return crow::response(500, res_json.dump());
         }
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            output += buffer;
+        }
+        int returnCode = pclose(pipe);
+
+        // --- Parse output for stats ---
+        int start_population = -1, end_population = -1;
+        double length_of_time = -1;
+        std::smatch match;
+        std::regex pop_re("# Started with ([0-9]+) people, ending with ([0-9]+) ");
+        std::regex time_re("# Current simulation time is ([0-9.]+)");
+        std::string::const_iterator searchStart(output.cbegin());
+        if (std::regex_search(output, match, pop_re) && match.size() >= 3) {
+            start_population = std::stoi(match[1]);
+            end_population = std::stoi(match[2]);
+        }
+        if (std::regex_search(output, match, time_re) && match.size() >= 2) {
+            length_of_time = std::stod(match[1]);
+        }
+
+        // --- Build minimal JSON response ---
+        crow::json::wvalue result;
+        result["return_code"] = returnCode;
+        result["time"] = length_of_time;
         result["start_population"] = start_population;
         result["end_population"] = end_population;
-        result["length_of_time"] = length_of_time;
+        
 
         crow::response res;
         res.code = 200;
         res.set_header("Content-Type", "application/json");
         res.body = result.dump();
-        std::cout << "[LOG] Returning JSON response to client (CORS handled by middleware)." << std::endl;
+        std::cout << "[LOG] Returning minimal JSON response to client (CORS handled by middleware)." << std::endl;
         return res;
     });
 
