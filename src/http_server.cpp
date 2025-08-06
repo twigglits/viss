@@ -106,7 +106,12 @@ int main() {
         }
 
         // --- Run simulation and capture output ---
-        std::string cmd = "./build/viss-release test_config1.txt 0 opt -o 2>&1";
+        std::string cmd;
+        if (seed != -1) {
+            cmd = "MNRM_DEBUG_SEED=" + std::to_string(seed) + " ./build/viss-release test_config1.txt 0 opt -o 2>&1";
+        } else {
+            cmd = "./build/viss-release test_config1.txt 0 opt -o 2>&1";
+        }
         std::string output;
         FILE* pipe = popen(cmd.c_str(), "r");
         if (!pipe) {
@@ -138,10 +143,11 @@ int main() {
 
         // --- Build minimal JSON response ---
         crow::json::wvalue result;
-        result["return_code"] = returnCode;
         result["time"] = length_of_time;
         result["start_population"] = start_population;
         result["end_population"] = end_population;
+        result["seed"] = seed;
+        result["return_code"] = returnCode;
         
 
         crow::response res;
