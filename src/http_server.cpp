@@ -129,6 +129,52 @@ int main() {
         return res;
     });
 
+    // New endpoint: fetch_output_config - returns the dev_eventlog.csv produced by the last run
+    CROW_ROUTE(app, "/fetch_output_config").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res;
+            res.code = 204;
+            return res;
+        }
+        std::ifstream infile("dev_eventlog.csv", std::ios::binary);
+        if (!infile.is_open()) {
+            return crow::response(404, "dev_eventlog.csv not found");
+        }
+        std::ostringstream ss;
+        ss << infile.rdbuf();
+        infile.close();
+
+        crow::response res;
+        res.code = 200;
+        res.set_header("Content-Type", "text/csv; charset=utf-8");
+        res.body = ss.str();
+        return res;
+    });
+
+    // New endpoint: fetch_input_config - returns the full test_config1.txt after substitutions
+    CROW_ROUTE(app, "/fetch_input_config").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res;
+            res.code = 204;
+            return res;
+        }
+        std::ifstream infile("test_config1.txt");
+        if (!infile.is_open()) {
+            return crow::response(404, "test_config1.txt not found");
+        }
+        std::ostringstream ss;
+        ss << infile.rdbuf();
+        infile.close();
+
+        crow::response res;
+        res.code = 200;
+        res.set_header("Content-Type", "text/plain; charset=utf-8");
+        res.body = ss.str();
+        return res;
+    });
+
     app.port(8000).multithreaded().run();
     std::cout << "[viss-api] Crow REST API server stopped.\n";
     return 0;
