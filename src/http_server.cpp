@@ -18,36 +18,6 @@ int main() {
         .headers("Content-Type");
     std::cout << "[viss-api] Crow REST API server starting on port 8000...\n";
 
-    // New endpoint: Run simulation and return terminal output as JSON
-    CROW_ROUTE(app, "/run_simulation_with_output").methods("POST"_method, "OPTIONS"_method)
-    ([](const crow::request& req){
-        if (req.method == "OPTIONS"_method) {
-            crow::response res;
-            res.code = 204;
-            return res;
-        }
-        // Prepare the command
-        std::string cmd = "./build/viss-release test_config1.txt 0 opt -o 2>&1";
-        std::string output;
-        FILE* pipe = popen(cmd.c_str(), "r");
-        if (!pipe) {
-            crow::json::wvalue res_json;
-            res_json["success"] = false;
-            res_json["error"] = "Failed to run simulation process.";
-            return crow::response(500, res_json.dump());
-        }
-        char buffer[256];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            output += buffer;
-        }
-        int returnCode = pclose(pipe);
-        crow::json::wvalue res_json;
-        res_json["success"] = (returnCode == 0);
-        res_json["output"] = output;
-        res_json["return_code"] = returnCode;
-        return crow::response(200, res_json.dump());
-    });
-
     CROW_ROUTE(app, "/run_simulation").methods("POST"_method, "OPTIONS"_method)
     ([](const crow::request& req){
         // --- CORS for OPTIONS ---
@@ -148,7 +118,8 @@ int main() {
         result["end_population"] = end_population;
         result["seed"] = seed;
         result["return_code"] = returnCode;
-        
+        // Include raw simulation log output as well
+        result["output"] = output;
 
         crow::response res;
         res.code = 200;
