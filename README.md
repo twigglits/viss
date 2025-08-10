@@ -24,6 +24,11 @@ To get started with VISS, you will need to have a C++ compiler and CMake install
 mkdir -p build && cd build && cmake .. && make -j4 && cd ..
 ```
 
+For building a core set of binaries instead use:
+```bash
+mkdir -p build && cd build && cmake .. && make -j4 redis++ viss-release viss-api && cd ..
+```
+
 To run the program, you can use the following command:
 
 ```bash
