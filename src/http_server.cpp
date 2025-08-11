@@ -142,7 +142,7 @@ int main() {
                     if (evt == "birth") {
                         pop += 1;
                         timeline.emplace_back(t, pop);
-                    } else if (evt == "normalmortality") {
+                    } else if (evt == "normalmortality" || evt == "aidsmortality") {
                         pop -= 1;
                         timeline.emplace_back(t, pop);
                     }
