@@ -6,6 +6,8 @@
 #include <string>
 #include <iostream>
 #include <regex>
+#include <vector>
+#include <ctime>
 #include <sw/redis++/redis++.h>
 using namespace sw::redis;
 
@@ -111,6 +113,98 @@ int main() {
             length_of_time = std::stod(match[1]);
         }
 
+        // --- Compute population timeline from dev_eventlog.csv and persist to Redis ---
+        std::string redis_key_used;
+        try {
+            // Compute timeline
+            std::ifstream evfile("dev_eventlog.csv");
+            if (evfile.is_open() && start_population >= 0) {
+                std::vector<std::pair<double,int>> timeline;
+                int pop = start_population;
+                std::string line;
+                bool first_point_added = false;
+                while (std::getline(evfile, line)) {
+                    if (line.empty()) continue;
+                    // Fast parse: first field = time, second field = event
+                    // Find first comma
+                    size_t c1 = line.find(',');
+                    if (c1 == std::string::npos) continue;
+                    double t = 0.0;
+                    try { t = std::stod(line.substr(0, c1)); } catch(...) { continue; }
+                    // second field
+                    size_t c2 = line.find(',', c1 + 1);
+                    std::string evt = (c2 == std::string::npos) ? line.substr(c1 + 1) : line.substr(c1 + 1, c2 - (c1 + 1));
+
+                    if (!first_point_added) {
+                        timeline.emplace_back(0.0, pop);
+                        first_point_added = true;
+                    }
+                    if (evt == "birth") {
+                        pop += 1;
+                        timeline.emplace_back(t, pop);
+                    } else if (evt == "normalmortality") {
+                        pop -= 1;
+                        timeline.emplace_back(t, pop);
+                    }
+                }
+                evfile.close();
+
+                // Serialize to compact JSON array: [[t,p], ...]
+                std::ostringstream json_ss;
+                json_ss << "[";
+                for (size_t i = 0; i < timeline.size(); ++i) {
+                    if (i) json_ss << ",";
+                    json_ss << "[" << timeline[i].first << "," << timeline[i].second << "]";
+                }
+                json_ss << "]";
+
+                // Connect to Redis (try docker hostname first, then localhost)
+                std::unique_ptr<Redis> redis_ptr;
+                auto try_connect = [&](const std::string &uri) -> bool {
+                    try {
+                        redis_ptr = std::make_unique<Redis>(uri);
+                        // test a command
+                        redis_ptr->ping();
+                        return true;
+                    } catch(const std::exception &e) {
+                        std::cerr << "[WARN] Redis connect failed for URI " << uri << ": " << e.what() << std::endl;
+                        return false;
+                    }
+                };
+
+                // Allow override from env
+                const char* env_uri = std::getenv("REDIS_URI");
+                bool connected = false;
+                if (env_uri && std::strlen(env_uri) > 0) {
+                    connected = try_connect(env_uri);
+                }
+                if (!connected) connected = try_connect("tcp://redis:6379");
+                if (!connected) connected = try_connect("tcp://127.0.0.1:6379");
+
+                if (connected && redis_ptr) {
+                    // Key naming: population:timeline:<epoch>:seed:<seed>
+                    std::time_t now = std::time(nullptr);
+                    redis_key_used = "population:timeline:" + std::to_string(now);
+                    if (seed != -1) redis_key_used += ":seed:" + std::to_string(seed);
+
+                    // Store JSON string
+                    try {
+                        redis_ptr->set(redis_key_used, json_ss.str());
+                        // Also point a latest key to this key
+                        redis_ptr->set("population:timeline:latest", redis_key_used);
+                    } catch(const std::exception &e) {
+                        std::cerr << "[WARN] Redis set failed: " << e.what() << std::endl;
+                    }
+                } else {
+                    std::cerr << "[WARN] Could not connect to Redis; skipping timeline persistence." << std::endl;
+                }
+            } else {
+                std::cerr << "[INFO] dev_eventlog.csv not found or start_population unknown; skipping timeline persistence." << std::endl;
+            }
+        } catch(const std::exception &e) {
+            std::cerr << "[WARN] Exception during timeline computation/persistence: " << e.what() << std::endl;
+        }
+
         // --- Build minimal JSON response ---
         crow::json::wvalue result;
         result["time"] = length_of_time;
@@ -120,6 +214,9 @@ int main() {
         result["return_code"] = returnCode;
         // Include raw simulation log output as well
         result["output"] = output;
+        if (!redis_key_used.empty()) {
+            result["population_timeline_key"] = redis_key_used;
+        }
 
         crow::response res;
         res.code = 200;
@@ -173,6 +270,65 @@ int main() {
         res.set_header("Content-Type", "text/plain; charset=utf-8");
         res.body = ss.str();
         return res;
+    });
+
+    // New endpoint: population_timeline/latest - fetch latest timeline JSON from Redis
+    CROW_ROUTE(app, "/population_timeline/latest").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+        try {
+            std::unique_ptr<Redis> redis_ptr;
+            auto try_connect = [&](const std::string &uri) -> bool {
+                try { redis_ptr = std::make_unique<Redis>(uri); redis_ptr->ping(); return true; }
+                catch(const std::exception &e) { std::cerr << "[WARN] Redis connect failed: " << e.what() << std::endl; return false; }
+            };
+            const char* env_uri = std::getenv("REDIS_URI");
+            bool connected = false;
+            if (env_uri && std::strlen(env_uri) > 0) connected = try_connect(env_uri);
+            if (!connected) connected = try_connect("tcp://redis:6379");
+            if (!connected) connected = try_connect("tcp://127.0.0.1:6379");
+            if (!connected || !redis_ptr) return crow::response(503, "Redis unavailable");
+
+            auto latest_key = redis_ptr->get("population:timeline:latest");
+            if (!latest_key) return crow::response(404, "No latest timeline key");
+            auto val = redis_ptr->get(*latest_key);
+            if (!val) return crow::response(404, "Timeline not found for latest key");
+
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /population_timeline/latest: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
+    });
+
+    // New endpoint: population_timeline/<key> - fetch specific timeline JSON from Redis
+    CROW_ROUTE(app, "/population_timeline/<string>").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req, const std::string& key){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+        try {
+            std::unique_ptr<Redis> redis_ptr;
+            auto try_connect = [&](const std::string &uri) -> bool {
+                try { redis_ptr = std::make_unique<Redis>(uri); redis_ptr->ping(); return true; }
+                catch(const std::exception &e) { std::cerr << "[WARN] Redis connect failed: " << e.what() << std::endl; return false; }
+            };
+            const char* env_uri = std::getenv("REDIS_URI");
+            bool connected = false;
+            if (env_uri && std::strlen(env_uri) > 0) connected = try_connect(env_uri);
+            if (!connected) connected = try_connect("tcp://redis:6379");
+            if (!connected) connected = try_connect("tcp://127.0.0.1:6379");
+            if (!connected || !redis_ptr) return crow::response(503, "Redis unavailable");
+
+            auto val = redis_ptr->get(key);
+            if (!val) return crow::response(404, "Timeline not found");
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /population_timeline/<key>: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
     });
 
     app.port(8000).multithreaded().run();
