@@ -21,10 +21,12 @@ WORKDIR /app
 # Copy the rest of the codebase
 COPY . .
 
-# Always invalidate cache for build step
-ARG CACHE_BREAKER=manual
 # Build the C++ project (as in CI)
-RUN rm -rf build && mkdir -p build && cd build && cmake .. && make -j4 && cd ..
+RUN rm -rf build && mkdir -p build && cd build && cmake .. && make -j4 redis++ viss-release && cd ..
+
+# We invalidate cache for now as we are often updated viss-api
+ARG CACHE_BREAKER=manual
+RUN cd build && make -j4 viss-api && cd ..
 
 # Expose port for backend communication
 EXPOSE 8000

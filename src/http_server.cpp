@@ -113,16 +113,21 @@ int main() {
             length_of_time = std::stod(match[1]);
         }
 
-        // --- Compute population timeline from dev_eventlog.csv and persist to Redis ---
+        // --- Compute population timeline and HIV infections timeline from dev_eventlog.csv and persist to Redis ---
         std::string redis_key_used;
+        std::string hiv_redis_key_used;
         try {
-            // Compute timeline
+            // Compute timelines
             std::ifstream evfile("dev_eventlog.csv");
             if (evfile.is_open() && start_population >= 0) {
                 std::vector<std::pair<double,int>> timeline;
+                std::vector<std::pair<double,int>> hiv_timeline;
                 int pop = start_population;
+                int cumulative_hiv_infections = 0;
                 std::string line;
                 bool first_point_added = false;
+                bool first_hiv_point_added = false;
+                
                 while (std::getline(evfile, line)) {
                     if (line.empty()) continue;
                     // Fast parse: first field = time, second field = event
@@ -135,6 +140,7 @@ int main() {
                     size_t c2 = line.find(',', c1 + 1);
                     std::string evt = (c2 == std::string::npos) ? line.substr(c1 + 1) : line.substr(c1 + 1, c2 - (c1 + 1));
 
+                    // Population timeline
                     if (!first_point_added) {
                         timeline.emplace_back(0.0, pop);
                         first_point_added = true;
@@ -146,10 +152,20 @@ int main() {
                         pop -= 1;
                         timeline.emplace_back(t, pop);
                     }
+                    
+                    // HIV infections timeline
+                    if (!first_hiv_point_added) {
+                        hiv_timeline.emplace_back(0.0, cumulative_hiv_infections);
+                        first_hiv_point_added = true;
+                    }
+                    if (evt == "transmission") {
+                        cumulative_hiv_infections += 1;
+                        hiv_timeline.emplace_back(t, cumulative_hiv_infections);
+                    }
                 }
                 evfile.close();
 
-                // Serialize to compact JSON array: [[t,p], ...]
+                // Serialize population timeline to compact JSON array: [[t,p], ...]
                 std::ostringstream json_ss;
                 json_ss << "[";
                 for (size_t i = 0; i < timeline.size(); ++i) {
@@ -157,6 +173,15 @@ int main() {
                     json_ss << "[" << timeline[i].first << "," << timeline[i].second << "]";
                 }
                 json_ss << "]";
+                
+                // Serialize HIV infections timeline to compact JSON array: [[t,infections], ...]
+                std::ostringstream hiv_json_ss;
+                hiv_json_ss << "[";
+                for (size_t i = 0; i < hiv_timeline.size(); ++i) {
+                    if (i) hiv_json_ss << ",";
+                    hiv_json_ss << "[" << hiv_timeline[i].first << "," << hiv_timeline[i].second << "]";
+                }
+                hiv_json_ss << "]";
 
                 // Connect to Redis (try docker hostname first, then localhost)
                 std::unique_ptr<Redis> redis_ptr;
@@ -185,13 +210,19 @@ int main() {
                     // Key naming: population:timeline:<epoch>:seed:<seed>
                     std::time_t now = std::time(nullptr);
                     redis_key_used = "population:timeline:" + std::to_string(now);
-                    if (seed != -1) redis_key_used += ":seed:" + std::to_string(seed);
+                    hiv_redis_key_used = "hiv:infections:timeline:" + std::to_string(now);
+                    if (seed != -1) {
+                        redis_key_used += ":seed:" + std::to_string(seed);
+                        hiv_redis_key_used += ":seed:" + std::to_string(seed);
+                    }
 
-                    // Store JSON string
+                    // Store JSON strings
                     try {
                         redis_ptr->set(redis_key_used, json_ss.str());
-                        // Also point a latest key to this key
+                        redis_ptr->set(hiv_redis_key_used, hiv_json_ss.str());
+                        // Also point latest keys to these keys
                         redis_ptr->set("population:timeline:latest", redis_key_used);
+                        redis_ptr->set("hiv:infections:timeline:latest", hiv_redis_key_used);
                     } catch(const std::exception &e) {
                         std::cerr << "[WARN] Redis set failed: " << e.what() << std::endl;
                     }
@@ -216,6 +247,9 @@ int main() {
         result["output"] = output;
         if (!redis_key_used.empty()) {
             result["population_timeline_key"] = redis_key_used;
+        }
+        if (!hiv_redis_key_used.empty()) {
+            result["hiv_infections_timeline_key"] = hiv_redis_key_used;
         }
 
         crow::response res;
@@ -327,6 +361,65 @@ int main() {
             crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
         } catch(const std::exception &e) {
             std::cerr << "[ERROR] /population_timeline/<key>: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
+    });
+
+    // New endpoint: hiv_infections_timeline/latest - fetch latest HIV infections timeline JSON from Redis
+    CROW_ROUTE(app, "/hiv_infections_timeline/latest").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+        try {
+            std::unique_ptr<Redis> redis_ptr;
+            auto try_connect = [&](const std::string &uri) -> bool {
+                try { redis_ptr = std::make_unique<Redis>(uri); redis_ptr->ping(); return true; }
+                catch(const std::exception &e) { std::cerr << "[WARN] Redis connect failed: " << e.what() << std::endl; return false; }
+            };
+            const char* env_uri = std::getenv("REDIS_URI");
+            bool connected = false;
+            if (env_uri && std::strlen(env_uri) > 0) connected = try_connect(env_uri);
+            if (!connected) connected = try_connect("tcp://redis:6379");
+            if (!connected) connected = try_connect("tcp://127.0.0.1:6379");
+            if (!connected || !redis_ptr) return crow::response(503, "Redis unavailable");
+
+            auto latest_key = redis_ptr->get("hiv:infections:timeline:latest");
+            if (!latest_key) return crow::response(404, "No latest HIV infections timeline key");
+            auto val = redis_ptr->get(*latest_key);
+            if (!val) return crow::response(404, "HIV infections timeline not found for latest key");
+
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /hiv_infections_timeline/latest: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
+    });
+
+    // New endpoint: hiv_infections_timeline/<key> - fetch specific HIV infections timeline JSON from Redis
+    CROW_ROUTE(app, "/hiv_infections_timeline/<string>").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req, const std::string& key){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+        try {
+            std::unique_ptr<Redis> redis_ptr;
+            auto try_connect = [&](const std::string &uri) -> bool {
+                try { redis_ptr = std::make_unique<Redis>(uri); redis_ptr->ping(); return true; }
+                catch(const std::exception &e) { std::cerr << "[WARN] Redis connect failed: " << e.what() << std::endl; return false; }
+            };
+            const char* env_uri = std::getenv("REDIS_URI");
+            bool connected = false;
+            if (env_uri && std::strlen(env_uri) > 0) connected = try_connect(env_uri);
+            if (!connected) connected = try_connect("tcp://redis:6379");
+            if (!connected) connected = try_connect("tcp://127.0.0.1:6379");
+            if (!connected || !redis_ptr) return crow::response(503, "Redis unavailable");
+
+            auto val = redis_ptr->get(key);
+            if (!val) return crow::response(404, "HIV infections timeline not found");
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /hiv_infections_timeline/<key>: " << e.what() << std::endl;
             return crow::response(500, "Internal server error");
         }
     });
