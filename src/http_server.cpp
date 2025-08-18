@@ -119,6 +119,7 @@ int main() {
         std::string hiv_redis_key_used;
         std::string hiv_prevalence_redis_key_used;
         std::string hiv_incidence_redis_key_used;
+        std::string hiv_mortality_redis_key_used;
         try {
             // Compute timelines
             std::ifstream evfile("dev_eventlog.csv");
@@ -127,6 +128,7 @@ int main() {
                 std::vector<std::pair<double,int>> hiv_timeline;
                 std::vector<std::pair<double,double>> hiv_prevalence_timeline;
                 std::vector<std::pair<double,double>> hiv_incidence_timeline;
+                std::vector<std::pair<double,double>> hiv_mortality_timeline;
                 int pop = start_population;
                 int cumulative_hiv_infections = 0;
                 int current_hiv_positive = 0;
@@ -135,10 +137,14 @@ int main() {
                 // For incidence calculation (yearly windows)
                 std::map<int, int> yearly_infections; // year -> infection count
                 std::map<int, int> yearly_population; // year -> population at start of year
+                
+                // For mortality calculation
+                int cumulative_aids_deaths = 0;
                 std::string line;
                 bool first_point_added = false;
                 bool first_hiv_point_added = false;
                 bool first_prevalence_point_added = false;
+                bool first_mortality_point_added = false;
                 
                 while (std::getline(evfile, line)) {
                     if (line.empty()) continue;
@@ -222,6 +228,11 @@ int main() {
                         }
                     }
                     
+                    // Track AIDS-related deaths for mortality calculation (separate from HIV+ tracking)
+                    if (evt == "aidsmortality" && !individual_id.empty()) {
+                        cumulative_aids_deaths++;
+                    }
+                    
                     // HIV prevalence timeline (percentage)
                     if (!first_prevalence_point_added) {
                         double prevalence = (pop > 0) ? (100.0 * current_hiv_positive / pop) : 0.0;
@@ -231,6 +242,17 @@ int main() {
                     if (evt == "transmission" || evt == "normalmortality" || evt == "aidsmortality" || evt == "birth") {
                         double prevalence = (pop > 0) ? (100.0 * current_hiv_positive / pop) : 0.0;
                         hiv_prevalence_timeline.emplace_back(t, prevalence);
+                    }
+                    
+                    // HIV mortality timeline (percentage of HIV-infected who died from AIDS)
+                    if (!first_mortality_point_added) {
+                        double mortality = (cumulative_hiv_infections > 0) ? (100.0 * cumulative_aids_deaths / cumulative_hiv_infections) : 0.0;
+                        hiv_mortality_timeline.emplace_back(0.0, mortality);
+                        first_mortality_point_added = true;
+                    }
+                    if (evt == "transmission" || evt == "aidsmortality") {
+                        double mortality = (cumulative_hiv_infections > 0) ? (100.0 * cumulative_aids_deaths / cumulative_hiv_infections) : 0.0;
+                        hiv_mortality_timeline.emplace_back(t, mortality);
                     }
                 }
                 evfile.close();
@@ -283,6 +305,15 @@ int main() {
                     hiv_incidence_json_ss << "[" << hiv_incidence_timeline[i].first << "," << hiv_incidence_timeline[i].second << "]";
                 }
                 hiv_incidence_json_ss << "]";
+                
+                // Serialize HIV mortality timeline to compact JSON array: [[t,percentage], ...]
+                std::ostringstream hiv_mortality_json_ss;
+                hiv_mortality_json_ss << "[";
+                for (size_t i = 0; i < hiv_mortality_timeline.size(); ++i) {
+                    if (i) hiv_mortality_json_ss << ",";
+                    hiv_mortality_json_ss << "[" << hiv_mortality_timeline[i].first << "," << hiv_mortality_timeline[i].second << "]";
+                }
+                hiv_mortality_json_ss << "]";
 
                 // Connect to Redis (try docker hostname first, then localhost)
                 std::unique_ptr<Redis> redis_ptr;
@@ -314,11 +345,13 @@ int main() {
                     hiv_redis_key_used = "hiv:infections:timeline:" + std::to_string(now);
                     hiv_prevalence_redis_key_used = "hiv:prevalence:timeline:" + std::to_string(now);
                     hiv_incidence_redis_key_used = "hiv:incidence:timeline:" + std::to_string(now);
+                    hiv_mortality_redis_key_used = "hiv:mortality:timeline:" + std::to_string(now);
                     if (seed != -1) {
                         redis_key_used += ":seed:" + std::to_string(seed);
                         hiv_redis_key_used += ":seed:" + std::to_string(seed);
                         hiv_prevalence_redis_key_used += ":seed:" + std::to_string(seed);
                         hiv_incidence_redis_key_used += ":seed:" + std::to_string(seed);
+                        hiv_mortality_redis_key_used += ":seed:" + std::to_string(seed);
                     }
 
                     // Store JSON strings
@@ -327,11 +360,13 @@ int main() {
                         redis_ptr->set(hiv_redis_key_used, hiv_json_ss.str());
                         redis_ptr->set(hiv_prevalence_redis_key_used, hiv_prevalence_json_ss.str());
                         redis_ptr->set(hiv_incidence_redis_key_used, hiv_incidence_json_ss.str());
+                        redis_ptr->set(hiv_mortality_redis_key_used, hiv_mortality_json_ss.str());
                         // Also point latest keys to these keys
                         redis_ptr->set("population:timeline:latest", redis_key_used);
                         redis_ptr->set("hiv:infections:timeline:latest", hiv_redis_key_used);
                         redis_ptr->set("hiv:prevalence:timeline:latest", hiv_prevalence_redis_key_used);
                         redis_ptr->set("hiv:incidence:timeline:latest", hiv_incidence_redis_key_used);
+                        redis_ptr->set("hiv:mortality:timeline:latest", hiv_mortality_redis_key_used);
                     } catch(const std::exception &e) {
                         std::cerr << "[WARN] Redis set failed: " << e.what() << std::endl;
                     }
@@ -365,6 +400,9 @@ int main() {
         }
         if (!hiv_incidence_redis_key_used.empty()) {
             result["hiv_incidence_timeline_key"] = hiv_incidence_redis_key_used;
+        }
+        if (!hiv_mortality_redis_key_used.empty()) {
+            result["hiv_mortality_timeline_key"] = hiv_mortality_redis_key_used;
         }
 
         crow::response res;
@@ -645,6 +683,57 @@ int main() {
             crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
         } catch(const std::exception &e) {
             std::cerr << "[ERROR] /hiv_incidence_timeline/<key>: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
+    });
+
+    // New endpoint: hiv_mortality_timeline/latest - fetch latest HIV mortality timeline JSON from Redis
+    CROW_ROUTE(app, "/hiv_mortality_timeline/latest").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+
+        try {
+            auto redis_ptr = std::make_unique<Redis>("tcp://redis:6379");
+            auto val = redis_ptr->get("hiv:mortality:timeline:latest");
+            if (!val) {
+                // Fallback to localhost
+                redis_ptr = std::make_unique<Redis>("tcp://127.0.0.1:6379");
+                val = redis_ptr->get("hiv:mortality:timeline:latest");
+            }
+            if (!val) return crow::response(404, "No HIV mortality timeline found");
+
+            // val is the Redis key, now fetch the actual data
+            auto data = redis_ptr->get(*val);
+            if (!data) return crow::response(404, "HIV mortality timeline data not found");
+
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *data; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /hiv_mortality_timeline/latest: " << e.what() << std::endl;
+            return crow::response(500, "Internal server error");
+        }
+    });
+
+    // New endpoint: hiv_mortality_timeline/<key> - fetch specific HIV mortality timeline JSON from Redis
+    CROW_ROUTE(app, "/hiv_mortality_timeline/<string>").methods("GET"_method, "OPTIONS"_method)
+    ([](const crow::request& req, const std::string& key){
+        if (req.method == "OPTIONS"_method) {
+            crow::response res; res.code = 204; return res;
+        }
+
+        try {
+            auto redis_ptr = std::make_unique<Redis>("tcp://redis:6379");
+            auto val = redis_ptr->get(key);
+            if (!val) {
+                // Fallback to localhost
+                redis_ptr = std::make_unique<Redis>("tcp://127.0.0.1:6379");
+                val = redis_ptr->get(key);
+            }
+            if (!val) return crow::response(404, "HIV mortality timeline not found");
+            crow::response res; res.code = 200; res.set_header("Content-Type", "application/json"); res.body = *val; return res;
+        } catch(const std::exception &e) {
+            std::cerr << "[ERROR] /hiv_mortality_timeline/<key>: " << e.what() << std::endl;
             return crow::response(500, "Internal server error");
         }
     });
