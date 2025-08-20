@@ -45,4 +45,4 @@ For debugging our program it is:
 VISS supports a variety of interventions that can be used to study the impact of different interventions on viral infections. These interventions include:
 
 - Antiretroviral therapy (ART)
-- Circumsizion
+- Circumcision
