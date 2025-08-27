@@ -69,6 +69,11 @@ public:
 
 	void setSexuallyActive(double t)												{ m_relations.setSexuallyActive(t); }
 	bool isSexuallyActive() const													{ return m_relations.isSexuallyActive(); }
+
+	// set and check for if person is uses condoms
+	bool m_condom=false;
+	void setCondomUse(bool f)														{ m_condom = f; }
+	bool isCondomUsing() const														{ return m_condom; }
 	double getDebutTime() const														{ return m_relations.getDebutTime(); }
 
 	double getFormationEagernessParameter() const									{ return m_relations.getFormationEagernessParameter(); }
