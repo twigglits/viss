@@ -4,7 +4,7 @@
 #include "jsonconfig.h"
 #include "configfunctions.h"
 #include "util.h"
-#include "eventcircum.h"
+#include "interventioncircum.h"
 #include <iostream>
 
 EventDebut::EventDebut(Person *pPerson) : SimpactEvent(pPerson)

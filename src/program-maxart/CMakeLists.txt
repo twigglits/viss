@@ -53,7 +53,8 @@ set(SOURCES_SIMPACT
 	../program-common/configutil.cpp
 	../program-common/aidstodutil.cpp
 	../program-common/configsettingslog.cpp
-	../program-common/eventcircum.cpp
+	../program-common/interventioncircum.cpp
+	../program-common/interventioncondom.cpp
 	)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/../program-common/")

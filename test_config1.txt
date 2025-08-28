@@ -2246,23 +2246,23 @@ population.eyecap.fraction                                   = 0.2
 # This parameter is used to set the distribution of subject willing to accept Condom treatment
 # and to enable or disable the Condom event.
 # Valid values are: ['true', 'false']
-#EventCondom.enabled                                          = false
+EventCondom.enabled                                          = false
 #EventCondom.AGYWthreshold                                    = 0.8
-#EventCondom.threshold                                        = 0.8
+EventCondom.threshold                                        = 0.8
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-#EventCondom.m_condomprobDist.dist.type                       = uniform
+EventCondom.m_condomprobDist.dist.type                       = uniform
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-#EventCondom.m_condomscheduleDist.dist.type                   = uniform
+EventCondom.m_condomscheduleDist.dist.type                   = uniform
 
 # The following depends on EventCondom.m_condomprobDist.dist.type = uniform
 # Parameters for a uniform distribution
-#EventCondom.m_condomprobDist.dist.uniform.min                = 0
-#EventCondom.m_condomprobDist.dist.uniform.max                = 1
+EventCondom.m_condomprobDist.dist.uniform.min                = 0
+EventCondom.m_condomprobDist.dist.uniform.max                = 1
 
 # The following depends on EventCondom.m_condomscheduleDist.dist.type = uniform
 # Parameters for a uniform distribution
-#EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
-#EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
+EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
+EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
 #EventCondom.m_condomprobDist.dist.uniform.min                = 0
 #EventCondom.m_condomprobDist.dist.uniform.max                = 1
 

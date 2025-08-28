@@ -1,4 +1,4 @@
-#include "eventcircum.h"
+#include "interventioncircum.h"
 #include "gslrandomnumbergenerator.h"
 #include "configdistributionhelper.h"
 #include "util.h"
