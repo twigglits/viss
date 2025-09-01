@@ -21,8 +21,8 @@ public:
 
 	static void processConfig(ConfigSettings &config, GslRandomNumberGenerator *pRndGen);
 	static void obtainConfig(ConfigWriter &config);
-
-	static bool s_CircumEnabled; 
+	
+	static bool s_CircumEnabled;  // the variable determining if interventions has been enabled 
 private:
 	bool isEligibleForTreatment(double t, const State *pState);
 	bool isWillingToStartTreatment(double t, GslRandomNumberGenerator *pRndGen);

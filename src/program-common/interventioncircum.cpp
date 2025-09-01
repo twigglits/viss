@@ -14,8 +14,9 @@ using namespace std;
 
 EventCircum::EventCircum(Person *pMan) : SimpactEvent(pMan)
 {
-    assert(pMan->isMan());
-    assert(!MAN(pMan)->isCircum());
+    assert(s_CircumEnabled);  //assert that event has been enabled
+    assert(pMan->isMan());    //assert that person is man
+    assert(!MAN(pMan)->isCircum());   //assert that man is not yet circumsized
 }
 
 EventCircum::~EventCircum()
@@ -62,12 +63,10 @@ void EventCircum::fire(Algorithm *pAlgorithm, State *pState, double t) {
     GslRandomNumberGenerator *pRndGen = population.getRandomNumberGenerator();
     Man *pMan = MAN(getPerson(0));
 
-    if (s_CircumEnabled) {
-        if (isEligibleForTreatment(t, pState) && isWillingToStartTreatment(t, pRndGen)) {
-            assert(!pMan->isCircum());
-            pMan->setCircum(true);
-            writeEventLogStart(true, "circumcision", t, pMan, 0);
-        } 
+    if (isEligibleForTreatment(t, pState) && isWillingToStartTreatment(t, pRndGen)) {
+        assert(!pMan->isCircum());
+        pMan->setCircum(true);
+        writeEventLogStart(true, "circumcision", t, pMan, 0); 
     } 
 }
 

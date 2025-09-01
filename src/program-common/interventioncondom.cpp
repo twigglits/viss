@@ -17,6 +17,7 @@ double EventCondom::s_condomThreshold = 0.5; // Initialize with the default thre
 EventCondom::EventCondom(Person *pPerson) : SimpactEvent(pPerson)
 {
     assert(pPerson->isSexuallyActive());
+    assert(s_condomEnabled);  //assert that event has been enabled
 }
 
 EventCondom::~EventCondom()
@@ -42,7 +43,7 @@ bool EventCondom::isEligibleForTreatment(double t, const State *pState)
     double curTime = population.getTime();
     double age = pPerson->getAgeAt(curTime); 
     
-    if (!pPerson->isCondomUsing()) {
+    if (pPerson->isSexuallyActive() && !pPerson->isCondomUsing()) {
         return true; 
     }else {        
         return false;

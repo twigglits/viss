@@ -17,17 +17,16 @@ public:
 
 	static void processConfig(ConfigSettings &config, GslRandomNumberGenerator *pRndGen);
 	static void obtainConfig(ConfigWriter &config);
+	
 	static ProbabilityDistribution *m_condomprobDist;
 	static ProbabilityDistribution *m_condomscheduleDist;
-
+	static bool s_condomEnabled;   //variable that determines if event is enabled in simulation
 private:
-	bool isEligibleForTreatment(double t, const State *pState);
 	bool isWillingToStartTreatment(double t, GslRandomNumberGenerator *pRndGen);
-
+	bool isEligibleForTreatment(double t, const State *pState);
 	double getNewInternalTimeDifference(GslRandomNumberGenerator *pRndGen, const State *pState, double t);
 	
 	static double s_condomThreshold; 
-	static bool s_condomEnabled;
 };
 
 #endif // EVENTCONDOM_H

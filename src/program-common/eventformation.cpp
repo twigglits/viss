@@ -5,6 +5,8 @@
 #include "eventdebut.h"
 #include "simpactpopulation.h"
 #include "simpactevent.h"
+#include "interventioncondom.h"
+#include "interventioncircum.h"
 #include "evthazardformationsimple.h"
 #include "evthazardformationagegap.h"
 #include "evthazardformationagegaprefyear.h"
@@ -106,6 +108,17 @@ void EventFormation::fire(Algorithm *pAlgorithm, State *pState, double t)
 	SimpactPopulation &population = SIMPACTPOPULATION(pState);
 	Person *pPerson1 = getPerson(0);
 	Person *pPerson2 = getPerson(1);
+
+	// Condom using event
+	if (!pPerson1->isCondomUsing() && EventCondom::s_condomEnabled){
+		EventCondom *pEvtCondom1 = new EventCondom(pPerson1);
+		population.onNewEvent(pEvtCondom1);
+	}
+
+	if (!pPerson2->isCondomUsing() && EventCondom::s_condomEnabled){
+		EventCondom *pEvtCondom2 = new EventCondom(pPerson2);
+		population.onNewEvent(pEvtCondom2);
+	}
 
 	pPerson1->addRelationship(pPerson2, t);
 	pPerson2->addRelationship(pPerson1, t);
