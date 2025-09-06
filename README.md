@@ -40,6 +40,13 @@ For debugging our program it is:
 ./build/viss-debug test_config1.txt 0 opt -o
 ```
 
+### Diseases
+
+VISS supports a variety of diseases that can be used to study the impact of different interventions on viral infections. These diseases include:
+
+- HIV
+- HSV2
+
 ### Interventions
 
 VISS supports a variety of interventions that can be used to study the impact of different interventions on viral infections. These interventions include:
