@@ -96,18 +96,18 @@ void EventCondom::processConfig(ConfigSettings &config, GslRandomNumberGenerator
         delete m_condomprobDist;
         m_condomprobDist = 0;
     }
-    m_condomprobDist = getDistributionFromConfig(config, pRndGen, "EventCondom.m_condomprobDist");
+    m_condomprobDist = getDistributionFromConfig(config, pRndGen, "condom.probability");
 
     if (m_condomscheduleDist) {
         delete m_condomscheduleDist;
         m_condomscheduleDist = 0;
     }
-    m_condomscheduleDist = getDistributionFromConfig(config, pRndGen, "EventCondom.m_condomscheduleDist");
+    m_condomscheduleDist = getDistributionFromConfig(config, pRndGen, "condom.condomschedule");
 
     // Read the boolean parameter from the config
     std::string enabledStr;
-    if (!(r = config.getKeyValue("EventCondom.enabled", enabledStr)) || (enabledStr != "true" && enabledStr != "false") || 
-        !(r = config.getKeyValue("EventCondom.threshold", s_condomThreshold))){
+    if (!(r = config.getKeyValue("condom.enabled", enabledStr)) || (enabledStr != "true" && enabledStr != "false") || 
+        !(r = config.getKeyValue("condom.threshold", s_condomThreshold))){
         abortWithMessage(r.getErrorString());
     }
     s_condomEnabled = (enabledStr == "true");
@@ -116,27 +116,27 @@ void EventCondom::processConfig(ConfigSettings &config, GslRandomNumberGenerator
 void EventCondom::obtainConfig(ConfigWriter &config) {
     bool_t r;
 
-    if (!(r = config.addKey("EventCondom.enabled", s_condomEnabled ? "true" : "false")) ||
-        !(r = config.addKey("EventCondom.threshold", s_condomThreshold))) {
+    if (!(r = config.addKey("condom.enabled", s_condomEnabled ? "true" : "false")) ||
+        !(r = config.addKey("condom.threshold", s_condomThreshold))) {
         abortWithMessage(r.getErrorString());
     }
 
     // Add the condom probability distribution to the config
-    addDistributionToConfig(m_condomprobDist, config, "EventCondom.m_condomprobDist");
-    addDistributionToConfig(m_condomprobDist, config, "EventCondom.m_condomscheduleDist");
+    addDistributionToConfig(m_condomprobDist, config, "condom.probability");
+    addDistributionToConfig(m_condomscheduleDist, config, "condom.condomschedule");
 
 }
 
-ConfigFunctions CondomConfigFunctions(EventCondom::processConfig, EventCondom::obtainConfig, "EventCondom");
+ConfigFunctions CondomConfigFunctions(EventCondom::processConfig, EventCondom::obtainConfig, "condom");
 
 JSONConfig CondomJSONConfig(R"JSON(
-    "EventCondom": { 
+    "condom": { 
         "depends": null,
         "params": [
-            ["EventCondom.enabled", "true", [ "true", "false"] ],
-            ["EventCondom.threshold", 0.5],
-            ["EventCondom.m_condomprobDist.dist", "distTypes", [ "uniform", [ [ "min", 0  ], [ "max", 1 ] ] ] ],
-            ["EventCondom.m_condomscheduleDist.dist", "distTypes", [ "uniform", [ [ "min", 0  ], [ "max", 1 ] ] ] ]
+            ["condom.enabled", "true", [ "true", "false"] ],
+            ["condom.threshold", 0.5],
+            ["condom.probability.dist", "distTypes", [ "uniform", [ [ "min", 0  ], [ "max", 1 ] ] ] ],
+            ["condom.schedule.dist", "distTypes", [ "uniform", [ [ "min", 0  ], [ "max", 1 ] ] ] ]
         ],
         "info": [ 
             "This parameter is used to set the distribution of subject willing to accept Condom treatment",

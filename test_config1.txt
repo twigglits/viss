@@ -1738,7 +1738,7 @@ hivtransmission.param.f1                                     = 2.55246456
 hivtransmission.param.f2                                     = -0.13862944
 hivtransmission.param.g1                                     = 0
 hivtransmission.param.g2                                     = 0
-hivtransmission.param.v1                                    = -0.916
+hivtransmission.param.v                                      = -0.916
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
 hivtransmission.maxageref.diff                               = 1
 
@@ -2185,6 +2185,16 @@ circum.probability.dist.type = uniform
 circum.probability.dist.uniform.min = 0
 circum.probability.dist.uniform.max = 1
 
+condom.enabled = false
+condom.threshold = 0.5
+condom.probability.dist.type = uniform
+condom.probability.dist.uniform.min = 0
+condom.probability.dist.uniform.max = 1
+
+condom.condomschedule.dist.type = uniform
+condom.condomschedule.dist.uniform.min = 0
+condom.condomschedule.dist.uniform.max = 1
+
 ##EXTRA parameters not yet integrated into backend
 
 # If set to 1, formation events will be scheduled for all man,woman
@@ -2246,23 +2256,23 @@ population.eyecap.fraction                                   = 0.2
 # This parameter is used to set the distribution of subject willing to accept Condom treatment
 # and to enable or disable the Condom event.
 # Valid values are: ['true', 'false']
-EventCondom.enabled                                          = false
+#EventCondom.enabled                                          = false
 #EventCondom.AGYWthreshold                                    = 0.8
-EventCondom.threshold                                        = 0.8
+# EventCondom.threshold                                        = 0.8
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventCondom.m_condomprobDist.dist.type                       = uniform
+# EventCondom.m_condomprobDist.dist.type                       = uniform
 # Valid values are: ['fixed', 'uniform', 'beta', 'gamma', 'lognormal', 'normal', 'exponential', 'discrete.inline', 'discrete.csv.onecol', 'discrete.csv.twocol']
-EventCondom.m_condomscheduleDist.dist.type                   = uniform
+# EventCondom.m_condomscheduleDist.dist.type                   = uniform
 
 # The following depends on EventCondom.m_condomprobDist.dist.type = uniform
 # Parameters for a uniform distribution
-EventCondom.m_condomprobDist.dist.uniform.min                = 0
-EventCondom.m_condomprobDist.dist.uniform.max                = 1
+# EventCondom.m_condomprobDist.dist.uniform.min                = 0
+# EventCondom.m_condomprobDist.dist.uniform.max                = 1
 
 # The following depends on EventCondom.m_condomscheduleDist.dist.type = uniform
 # Parameters for a uniform distribution
-EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
-EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
+#EventCondom.m_condomscheduleDist.dist.uniform.min            = 0
+#EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
 #EventCondom.m_condomprobDist.dist.uniform.min                = 0
 #EventCondom.m_condomprobDist.dist.uniform.max                = 1
 
@@ -2338,8 +2348,8 @@ EventCondom.m_condomscheduleDist.dist.uniform.max            = 1
 #hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.ycolumn = 2
 #hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.floor = yes
 #hivtransmission.m_condomformationdist.dist.type              = discrete.csv.twocol
-#hivtransmission.param.k                                      = -1.6094
-#hivtransmission.param.v1                                     = -0.916
+hivtransmission.param.k                                      = -1.6094
+#hivtransmission.param.v                                     = -0.916
 #hivtransmission.param.p                                      = -1.6094
 #hivtransmission.threshold                                    = 0.3
 

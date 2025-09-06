@@ -26,11 +26,13 @@ find_package(Boost REQUIRED COMPONENTS system filesystem)
 add_executable(test_base test_base.cpp)
 add_executable(test_circum test_circum.cpp)
 add_executable(test_binary test_binary.cpp)
+add_executable(test_condom test_condom.cpp)
 
 # Set C++17 for this test target only
 set_target_properties(test_base PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 set_target_properties(test_circum PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 set_target_properties(test_binary PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
+set_target_properties(test_condom PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
 
 # Link GoogleTest and Boost
 # gtest_main provides main(); Boost is needed for property_tree
@@ -39,20 +41,24 @@ set_target_properties(test_binary PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIR
 target_link_libraries(test_base PRIVATE gtest_main Boost::system Boost::filesystem)
 target_link_libraries(test_circum PRIVATE gtest_main Boost::system Boost::filesystem)
 target_link_libraries(test_binary PRIVATE gtest_main Boost::system Boost::filesystem)
+target_link_libraries(test_condom PRIVATE gtest_main Boost::system Boost::filesystem)
 
 # Add test
 # Copy required files to build dir so test can find them
 configure_file(${CMAKE_SOURCE_DIR}/test_config1.txt ${CMAKE_BINARY_DIR}/test_config1.txt COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/stat_out_base_500.json ${CMAKE_BINARY_DIR}/stat_out_base_500.json COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/stat_out_circum_500.json ${CMAKE_BINARY_DIR}/stat_out_circum_500.json COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/stat_out_condom_500.json ${CMAKE_BINARY_DIR}/stat_out_condom_500.json COPYONLY)
 file(COPY ${CMAKE_SOURCE_DIR}/data DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/intervention DESTINATION ${CMAKE_BINARY_DIR})
 
 add_test(NAME test_base COMMAND ${CMAKE_BINARY_DIR}/test_base)
 add_test(NAME test_circum COMMAND ${CMAKE_BINARY_DIR}/test_circum)
 add_test(NAME test_binary COMMAND ${CMAKE_BINARY_DIR}/test_binary)
+add_test(NAME test_condom COMMAND ${CMAKE_BINARY_DIR}/test_condom)
 
 set_tests_properties(test_base PROPERTIES WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(test_circum PROPERTIES WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(test_binary PROPERTIES WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(test_condom PROPERTIES WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 

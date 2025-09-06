@@ -109,6 +109,9 @@ void EventFormation::fire(Algorithm *pAlgorithm, State *pState, double t)
 	Person *pPerson1 = getPerson(0);
 	Person *pPerson2 = getPerson(1);
 
+	pPerson1->addRelationship(pPerson2, t);
+	pPerson2->addRelationship(pPerson1, t);
+
 	// Condom using event
 	if (!pPerson1->isCondomUsing() && EventCondom::s_condomEnabled){
 		EventCondom *pEvtCondom1 = new EventCondom(pPerson1);
@@ -119,9 +122,6 @@ void EventFormation::fire(Algorithm *pAlgorithm, State *pState, double t)
 		EventCondom *pEvtCondom2 = new EventCondom(pPerson2);
 		population.onNewEvent(pEvtCondom2);
 	}
-
-	pPerson1->addRelationship(pPerson2, t);
-	pPerson2->addRelationship(pPerson1, t);
 
 	// Need to add a dissolution event
 
