@@ -1,0 +1,40 @@
+[package]
+name = "vrust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "Fast, explainable age-structured SEIRS ODE epidemiology simulator"
+license = "GNU GPL v3"
+
+[lib]
+name = "vrust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "single_region"
+path = "examples/single_region.rs"
+
+autobins = false
+
+[dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+csv = "1.3"
+rayon = { version = "1", optional = true }
+
+[features]
+default = []
+parallel = ["rayon"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[[bin]]
+name = "bench"
+path = "examples/bench.rs"
+
+[profile.dev]
+opt-level = 1
