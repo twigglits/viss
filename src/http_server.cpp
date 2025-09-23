@@ -84,9 +84,9 @@ int main() {
         // --- Run simulation and capture output ---
         std::string cmd;
         if (seed != -1) {
-            cmd = "MNRM_DEBUG_SEED=" + std::to_string(seed) + " ./build/viss-release test_config1.txt 0 opt -o 2>&1";
+            cmd = "MNRM_DEBUG_SEED=" + std::to_string(seed) + " ./build/viss-release test_config1.txt 1 opt -o 2>&1";
         } else {
-            cmd = "./build/viss-release test_config1.txt 0 opt -o 2>&1";
+            cmd = "./build/viss-release test_config1.txt 1 opt -o 2>&1";
         }
         std::string output;
         FILE* pipe = popen(cmd.c_str(), "r");
