@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::math::ode::{rk4_step, rk4_step_ws, Rk4Workspace};
+use crate::math::ode::rk4_step;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeirsConfig {
@@ -87,26 +87,12 @@ fn indices(cfg: &SeirsConfig, a: usize) -> (usize, usize, usize, usize) {
 
 pub struct SeirsModel {
     pub cfg: SeirsConfig,
-    // Scratch buffers to avoid per-step allocations
-    i_by_age: Vec<f64>,
-    n_by_age: Vec<f64>,
-    lambda: Vec<f64>,
-    vacc_buf: Vec<f64>,
-    rk_ws: Rk4Workspace,
 }
 
 impl SeirsModel {
     pub fn new(cfg: SeirsConfig) -> anyhow::Result<Self> {
         cfg.check()?;
-        let n_age = cfg.n_age;
-        Ok(Self {
-            cfg,
-            i_by_age: vec![0.0; n_age],
-            n_by_age: vec![0.0; n_age],
-            lambda: vec![0.0; n_age],
-            vacc_buf: vec![0.0; n_age],
-            rk_ws: Rk4Workspace::new(0),
-        })
+        Ok(Self { cfg })
     }
 
     pub fn deriv(&self, t: f64, y: &[f64], dy: &mut [f64]) {
@@ -176,173 +162,12 @@ impl SeirsModel {
         }
     }
 
-    fn deriv_allocfree_mut(&mut self, t: f64, y: &[f64], dy: &mut [f64]) {
-        dy.fill(0.0);
-        let cfg = &self.cfg;
-
-        // Compute I_a and N_a at time t (scratch buffers)
-        for a in 0..cfg.n_age {
-            let (s_idx, e0, i0, r_idx) = indices(cfg, a);
-            let s = y[s_idx];
-            let r = y[r_idx];
-            let mut e_sum = 0.0;
-            let mut i_sum = 0.0;
-            for j in 0..cfg.k_e { e_sum += y[e0 + j]; }
-            for j in 0..cfg.k_i { i_sum += y[i0 + j]; }
-            self.i_by_age[a] = i_sum;
-            self.n_by_age[a] = s + e_sum + i_sum + r;
-        }
-
-        // Force of infection per age
-        let beta = self.cfg.beta_at(t);
-        for a in 0..cfg.n_age {
-            let mut sum = 0.0;
-            for b in 0..cfg.n_age {
-                let nb = self.n_by_age[b];
-                if nb > 0.0 { sum += cfg.contact[a][b] * self.i_by_age[b] / nb; }
-            }
-            self.lambda[a] = beta * sum;
-        }
-
-        // Vaccination rates per age into vacc_buf
-        if let Some(v) = &cfg.vacc_rate {
-            self.vacc_buf.copy_from_slice(v);
-        } else {
-            for a in 0..cfg.n_age { self.vacc_buf[a] = 0.0; }
-        }
-
-        // Transitions
-        let ke_sigma = (cfg.k_e as f64) * cfg.sigma;
-        let ki_gamma = (cfg.k_i as f64) * cfg.gamma;
-
-        for a in 0..cfg.n_age {
-            let (s_idx, e0, i0, r_idx) = indices(cfg, a);
-
-            // S
-            let s = y[s_idx];
-            let to_e = self.lambda[a] * s;
-            let to_r_vacc = self.vacc_buf[a] * s;
-            dy[s_idx] -= to_e + to_r_vacc;
-
-            // E stages
-            dy[e0] += to_e - ke_sigma * y[e0];
-            for j in 1..cfg.k_e {
-                dy[e0 + j] += ke_sigma * y[e0 + j - 1] - ke_sigma * y[e0 + j];
-            }
-
-            // I stages
-            dy[i0] += ke_sigma * y[e0 + cfg.k_e - 1] - ki_gamma * y[i0];
-            for j in 1..cfg.k_i {
-                dy[i0 + j] += ki_gamma * y[i0 + j - 1] - ki_gamma * y[i0 + j];
-            }
-
-            // R
-            let inflow_r = ki_gamma * y[i0 + cfg.k_i - 1] + to_r_vacc;
-            dy[r_idx] += inflow_r - cfg.omega * y[r_idx];
-            dy[s_idx] += cfg.omega * y[r_idx];
-        }
-    }
-
     pub fn simulate(&self, state: &mut SeirsState, t0: f64, t_end: f64, dt: f64) -> Vec<(f64, Vec<f64>)> {
         let mut t = t0;
         let mut out = Vec::new();
         out.push((t, state.y.clone()));
         while t < t_end - 1e-12 {
             rk4_step(&mut state.y, t, dt, |tt, y, dy| self.deriv(tt, y, dy));
-            t += dt;
-            out.push((t, state.y.clone()));
-        }
-        out
-    }
-
-    pub fn simulate_optimized(&mut self, state: &mut SeirsState, t0: f64, t_end: f64, dt: f64) -> Vec<(f64, Vec<f64>)> {
-        let mut t = t0;
-        let mut out = Vec::new();
-        out.push((t, state.y.clone()));
-        let n = state.y.len();
-        self.rk_ws.resize(n);
-        let mut ytmp = vec![0.0; n];
-
-        // Take a snapshot of cfg to avoid repeated immutable borrows of self
-        let cfg = self.cfg.clone();
-        let na = cfg.n_age;
-        let ke_sigma = (cfg.k_e as f64) * cfg.sigma;
-        let ki_gamma = (cfg.k_i as f64) * cfg.gamma;
-        let vacc_const: Vec<f64> = if let Some(v) = &cfg.vacc_rate { v.clone() } else { vec![0.0; na] };
-
-        // Local scratch (single allocation per simulate)
-        let mut i_by_age = vec![0.0; na];
-        let mut n_by_age = vec![0.0; na];
-        let mut lambda = vec![0.0; na];
-
-        let mut compute_deriv = |tt: f64, y: &[f64], dy: &mut [f64]| {
-            dy.fill(0.0);
-            // sums per age
-            for a in 0..na {
-                let (s_idx, e0, i0, r_idx) = indices(&cfg, a);
-                let s = y[s_idx];
-                let r = y[r_idx];
-                let mut e_sum = 0.0;
-                let mut i_sum = 0.0;
-                for j in 0..cfg.k_e { e_sum += y[e0 + j]; }
-                for j in 0..cfg.k_i { i_sum += y[i0 + j]; }
-                i_by_age[a] = i_sum;
-                n_by_age[a] = s + e_sum + i_sum + r;
-            }
-            // Force of infection
-            let beta = cfg.beta_at(tt);
-            for a in 0..na {
-                let mut sum = 0.0;
-                for b in 0..na {
-                    let nb = n_by_age[b];
-                    if nb > 0.0 { sum += cfg.contact[a][b] * i_by_age[b] / nb; }
-                }
-                lambda[a] = beta * sum;
-            }
-            // Transitions
-            for a in 0..na {
-                let (s_idx, e0, i0, r_idx) = indices(&cfg, a);
-                let s = y[s_idx];
-                let to_e = lambda[a] * s;
-                let to_r_vacc = vacc_const[a] * s;
-                dy[s_idx] -= to_e + to_r_vacc;
-                dy[e0] += to_e - ke_sigma * y[e0];
-                for j in 1..cfg.k_e { dy[e0 + j] += ke_sigma * y[e0 + j - 1] - ke_sigma * y[e0 + j]; }
-                dy[i0] += ke_sigma * y[e0 + cfg.k_e - 1] - ki_gamma * y[i0];
-                for j in 1..cfg.k_i { dy[i0 + j] += ki_gamma * y[i0 + j - 1] - ki_gamma * y[i0 + j]; }
-                let inflow_r = ki_gamma * y[i0 + cfg.k_i - 1] + to_r_vacc;
-                dy[r_idx] += inflow_r - cfg.omega * y[r_idx];
-                dy[s_idx] += cfg.omega * y[r_idx];
-            }
-        };
-        while t < t_end - 1e-12 {
-            // k1
-            compute_deriv(t, &state.y, &mut self.rk_ws.k1);
-
-            // ytmp = y + 0.5*dt*k1
-            for i in 0..n { ytmp[i] = state.y[i] + 0.5 * dt * self.rk_ws.k1[i]; }
-            // k2
-            compute_deriv(t + 0.5 * dt, &ytmp, &mut self.rk_ws.k2);
-
-            // ytmp = y + 0.5*dt*k2
-            for i in 0..n { ytmp[i] = state.y[i] + 0.5 * dt * self.rk_ws.k2[i]; }
-            // k3
-            compute_deriv(t + 0.5 * dt, &ytmp, &mut self.rk_ws.k3);
-
-            // ytmp = y + dt*k3
-            for i in 0..n { ytmp[i] = state.y[i] + dt * self.rk_ws.k3[i]; }
-            // k4
-            compute_deriv(t + dt, &ytmp, &mut self.rk_ws.k4);
-
-            // y += (dt/6)*(k1 + 2k2 + 2k3 + k4)
-            for i in 0..n {
-                state.y[i] += (dt / 6.0)
-                    * (self.rk_ws.k1[i]
-                        + 2.0 * self.rk_ws.k2[i]
-                        + 2.0 * self.rk_ws.k3[i]
-                        + self.rk_ws.k4[i]);
-            }
-
             t += dt;
             out.push((t, state.y.clone()));
         }
