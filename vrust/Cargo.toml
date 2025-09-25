@@ -10,12 +10,6 @@ license = "GNU GPL v3"
 name = "vrust"
 path = "src/lib.rs"
 
-[[bin]]
-name = "single_region"
-path = "examples/single_region.rs"
-
-autobins = false
-
 [dependencies]
 anyhow = "1"
 thiserror = "1"
@@ -31,10 +25,6 @@ parallel = ["rayon"]
 lto = true
 codegen-units = 1
 opt-level = 3
-
-[[bin]]
-name = "bench"
-path = "examples/bench.rs"
 
 [profile.dev]
 opt-level = 1

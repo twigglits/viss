@@ -14,6 +14,9 @@ requirements.txt
 .gitignore
 __pycache__/
 
+# Rust rebuild
+vrust/
+
 # Ignore logs and test outputs
 *.csv
 *.log

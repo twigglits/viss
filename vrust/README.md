@@ -2,6 +2,12 @@
 
 A fast, explainable, age-structured SEIRS ODE simulator with Erlang-stage compartments, designed to integrate with WorldPop population data and contact matrices.
 
+## Installation
+
+```bash
+cargo clean && cargo update && cargo build --release
+```
+
 ## Features
 - Deterministic SEIRS with age structure and configurable Erlang stages (k_E, k_I)
 - Contact-matrix-based force of infection (Prem et al.-style)
