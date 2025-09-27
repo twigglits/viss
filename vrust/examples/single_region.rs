@@ -7,7 +7,7 @@ fn main() -> anyhow::Result<()> {
         vec![8.0, 2.0],
         vec![2.0, 6.0],
     ];
-    let pop = vec![5.0e6, 4.0e6];
+    let pop = vec![5_000_000.0, 4_000_000.0]; // I get rid of scientific notation, because it's always confusing, added underscores for readability.
 
     let r0 = 2.5;
     let gamma = 1.0 / 5.0; // infectious mean 5 days
