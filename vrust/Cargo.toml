@@ -16,6 +16,7 @@ thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 csv = "1.3"
 rayon = { version = "1", optional = true }
+postgres = "0.19"
 
 [features]
 default = []
