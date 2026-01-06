@@ -47,6 +47,42 @@ VISS supports a variety of diseases that can be used to study the impact of diff
 - HIV
 - HSV2
 
+### SEIRS model (mathematical definition)
+
+One of the core deterministic compartmental models used in VISS is an SEIRS model with vaccination and demographic turnover.
+
+Let:
+
+- **S(t)** be the susceptible population
+- **E(t)** be the exposed (infected but not yet infectious) population
+- **I(t)** be the infectious population
+- **R(t)** be the recovered/immune population
+- **N(t) = S(t) + E(t) + I(t) + R(t)** be the total population
+
+The model is defined by the ODE system:
+
+```text
+dS/dt = b (1 − ν) N − β (S I / N) − dS + αR − ρS
+dE/dt = β (S I / N) − σE − dE
+dI/dt = σE − γI − dI
+dR/dt = b ν N + γI − dR − αR + ρS
+```
+
+Term definitions (typical units are per-day rates):
+
+- **b**: per-capita birth rate (births occur at total rate bN)
+- **d**: per-capita death rate (applied to all compartments)
+- **β**: transmission rate parameter
+- **σ**: latent progression rate (mean latent/incubation period is 1/σ)
+- **γ**: recovery rate (mean infectious period is 1/γ)
+- **α**: waning immunity rate (R → S)
+- **ν**: fraction of newborns vaccinated at birth (births into R)
+- **ρ**: vaccination rate applied to susceptibles (S → R)
+
+The infection (incidence) term **β (S I / N)** corresponds to frequency-dependent transmission, i.e. the force of infection is λ(t) = β I/N and incidence is λS.
+
+Summing the four equations gives dN/dt = (b − d) N. In particular, when b = d the total population remains constant.
+
 ### Interventions
 
 VISS supports a variety of interventions that can be used to study the impact of different interventions on viral infections. These interventions include:
