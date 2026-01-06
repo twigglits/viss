@@ -13,6 +13,12 @@ pub struct SeirsConfig {
     pub gamma: f64,   // 1/infectious mean
     pub omega: f64,   // waning from R->S (0 for no waning)
 
+    // Mortality (per day)
+    // Baseline mortality applied to all compartments.
+    pub mu: f64,
+    // Excess mortality applied to infected (I) compartments.
+    pub mu_i_extra: f64,
+
     // Transmission
     pub beta0: f64,   // baseline beta
     pub beta_schedule: Vec<(f64, f64)>, // sorted by time: (t, multiplier m(t))
@@ -41,6 +47,7 @@ impl SeirsConfig {
         anyhow::ensure!(self.pop.len() == self.n_age, "pop.len != n_age");
         if let Some(v) = &self.vacc_rate { anyhow::ensure!(v.len() == self.n_age, "vacc_rate.len != n_age"); }
         anyhow::ensure!(self.k_e >= 1 && self.k_i >= 1, "k_e and k_i must be >= 1");
+        anyhow::ensure!(self.mu >= 0.0 && self.mu_i_extra >= 0.0, "mu and mu_i_extra must be >= 0");
         Ok(())
     }
 
@@ -142,22 +149,28 @@ impl SeirsModel {
             let to_e = lambda[a] * s;
             let to_r_vacc = vacc[a] * s;
             dy[s_idx] -= to_e + to_r_vacc;
+            dy[s_idx] -= cfg.mu * s;
 
             // E stages
             dy[e0] += to_e - ke_sigma * y[e0];
+            dy[e0] -= cfg.mu * y[e0];
             for j in 1..cfg.k_e {
                 dy[e0 + j] += ke_sigma * y[e0 + j - 1] - ke_sigma * y[e0 + j];
+                dy[e0 + j] -= cfg.mu * y[e0 + j];
             }
 
             // I stages
             dy[i0] += ke_sigma * y[e0 + cfg.k_e - 1] - ki_gamma * y[i0];
+            dy[i0] -= (cfg.mu + cfg.mu_i_extra) * y[i0];
             for j in 1..cfg.k_i {
                 dy[i0 + j] += ki_gamma * y[i0 + j - 1] - ki_gamma * y[i0 + j];
+                dy[i0 + j] -= (cfg.mu + cfg.mu_i_extra) * y[i0 + j];
             }
 
             // R
             let inflow_r = ki_gamma * y[i0 + cfg.k_i - 1] + to_r_vacc;
             dy[r_idx] += inflow_r - cfg.omega * y[r_idx];
+            dy[r_idx] -= cfg.mu * y[r_idx];
             dy[s_idx] += cfg.omega * y[r_idx];
         }
     }

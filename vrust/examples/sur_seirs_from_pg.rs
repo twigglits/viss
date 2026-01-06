@@ -23,6 +23,10 @@ fn main() -> anyhow::Result<()> {
     let sigma = 1.0 / 14.0; // 14-day exposed period (placeholder)
     let gamma = 1.0 / 180.0; // 180-day mean infectious period (placeholder)
 
+    // Mortality placeholders (per day)
+    let mu = 0.008 / 365.0;
+    let mu_i_extra = 0.02 / 365.0;
+
     // Choose a baseline R0 for calibration (placeholder)
     let r0 = 1.5;
     let beta0 = beta0_from_r0(&contact, gamma, r0);
@@ -34,6 +38,8 @@ fn main() -> anyhow::Result<()> {
         sigma,
         gamma,
         omega: 0.0,
+        mu,
+        mu_i_extra,
         beta0,
         beta_schedule: vec![(0.0, 1.0)],
         contact,

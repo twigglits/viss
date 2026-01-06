@@ -13,6 +13,10 @@ fn main() -> anyhow::Result<()> {
     let gamma = 1.0 / 5.0; // infectious mean 5 days
     let sigma = 1.0 / 3.0; // incubation mean 3 days
 
+    // Mortality placeholders (per day)
+    let mu = 0.008 / 365.0;
+    let mu_i_extra = 0.02 / 365.0;
+
     let beta0 = beta0_from_r0(&contact, gamma, r0);
 
     let cfg = SeirsConfig {
@@ -22,6 +26,8 @@ fn main() -> anyhow::Result<()> {
         sigma,
         gamma,
         omega: 0.0,
+        mu,
+        mu_i_extra,
         beta0,
         beta_schedule: vec![
             (0.0, 1.0),

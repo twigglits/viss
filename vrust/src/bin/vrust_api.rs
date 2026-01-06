@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -44,6 +44,12 @@ struct RunRequest {
     seed_infections: Option<f64>,
     t_end_days: Option<f64>,
     dt_days: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LatestQuery {
+    iso3: Option<String>,
+    year: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -131,6 +137,9 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
 
     let sigma = 1.0 / 14.0;
     let gamma = 1.0 / 180.0;
+    // Mortality placeholders (per day). These should be replaced by real demography + HIV natural history.
+    let mu = 0.008 / 365.0; // ~0.8% annual baseline mortality
+    let mu_i_extra = 0.02 / 365.0; // additional ~2% annual mortality while infected
     let r0 = 1.5;
     let beta0 = beta0_from_r0(&contact, gamma, r0);
 
@@ -141,6 +150,8 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         sigma,
         gamma,
         omega: 0.0,
+        mu,
+        mu_i_extra,
         beta0,
         beta_schedule: vec![(0.0, 1.0)],
         contact,
@@ -214,9 +225,11 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     })
 }
 
-async fn population_latest(State(st): State<AppState>) -> impl IntoResponse {
+async fn population_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) -> impl IntoResponse {
     let pg_conn_str = st.pg_conn_str.clone();
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, "SUR", 2025, "population"));
+    let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
+    let year = q.year.unwrap_or(2025);
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "population"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -224,9 +237,11 @@ async fn population_latest(State(st): State<AppState>) -> impl IntoResponse {
     }
 }
 
-async fn hiv_latest(State(st): State<AppState>) -> impl IntoResponse {
+async fn hiv_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) -> impl IntoResponse {
     let pg_conn_str = st.pg_conn_str.clone();
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, "SUR", 2025, "infected"));
+    let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
+    let year = q.year.unwrap_or(2025);
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "infected"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
