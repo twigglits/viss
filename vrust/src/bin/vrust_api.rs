@@ -23,6 +23,87 @@ struct AppState {
     pg_conn_str: String,
 }
 
+async fn get_un_data_indicator_location_years(
+    State(st): State<AppState>,
+    Path(p): Path<UnDataPath>,
+) -> impl IntoResponse {
+    let indicator = p.indicator.trim().to_string();
+    if indicator != "ASFR5" {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "only ASFR5 is supported by this cached endpoint"})),
+        )
+            .into_response();
+    }
+
+    let iso3 = p.location.trim().to_uppercase();
+    if iso3.len() != 3 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "location must be an ISO3 code in this cached endpoint"})),
+        )
+            .into_response();
+    }
+    let start = p.start;
+    let end = p.end;
+    if start > end {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "start must be <= end"})),
+        )
+            .into_response();
+    }
+
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        let mut client = Client::connect(&pg_conn_str, NoTls)
+            .with_context(|| "Failed to connect to Postgres")?;
+
+        let rows = client
+            .query(
+                "SELECT year, variant_short_name, age_min, age_max, asfr FROM asfr_5yr WHERE iso3 = $1 AND year >= $2 AND year <= $3 ORDER BY year ASC, variant_short_name ASC, age_min ASC",
+                &[&iso3, &start, &end],
+            )
+            .with_context(|| "Failed to query asfr_5yr")?;
+
+        let mut out: Vec<UnAsfrRow> = Vec::with_capacity(rows.len());
+        for row in rows {
+            let year: i32 = row.get(0);
+            let variant_short_name: String = row.get(1);
+            let age_min: i32 = row.get(2);
+            let age_max: i32 = row.get(3);
+            let asfr: f64 = row.get(4);
+            out.push(UnAsfrRow {
+                location_id: iso3.clone(),
+                // We do not persist sexId in the cache currently; use 3 (both sexes) as a safe default.
+                // The DAG logs when it falls back from female (2) to both sexes (3).
+                sex_id: 3,
+                variant_short_name: variant_short_name,
+                age_start: age_min,
+                age_end: age_max,
+                time_label: year,
+                value: asfr,
+            });
+        }
+
+        Ok::<Vec<UnAsfrRow>, anyhow::Error>(out)
+    });
+
+    match join.await {
+        Ok(Ok(rows)) => (StatusCode::OK, Json(rows)).into_response(),
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("failed to load cached ASFR from Postgres: {e}")})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("join error: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 fn redact_conn_str(s: &str) -> String {
     // Avoid logging secrets in errors. Best-effort redaction.
     let mut out = String::new();
@@ -50,6 +131,55 @@ struct RunRequest {
 struct LatestQuery {
     iso3: Option<String>,
     year: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UnDataPath {
+    indicator: String,
+    location: String,
+    start: i32,
+    end: i32,
+}
+
+#[derive(Debug, Deserialize)]
+struct AsfrQuery {
+    iso3: String,
+    year: i32,
+}
+
+#[derive(Debug, Serialize)]
+struct AsfrBin {
+    variant_short_name: String,
+    age_min: i32,
+    age_max: i32,
+    asfr: f64,
+}
+
+#[derive(Debug, Serialize)]
+struct AsfrResponse {
+    iso3: String,
+    year: i32,
+    source: String,
+    indicator: String,
+    unit: String,
+    ages: Vec<AsfrBin>,
+}
+
+#[derive(Debug, Serialize)]
+struct UnAsfrRow {
+    #[serde(rename = "locationId")]
+    location_id: String,
+    #[serde(rename = "sexId")]
+    sex_id: i32,
+    #[serde(rename = "variantShortName")]
+    variant_short_name: String,
+    #[serde(rename = "ageStart")]
+    age_start: i32,
+    #[serde(rename = "ageEnd")]
+    age_end: i32,
+    #[serde(rename = "timeLabel")]
+    time_label: i32,
+    value: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,6 +211,11 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/run_simulation", post(run_simulation))
+        .route("/demography/asfr", get(get_asfr))
+        .route(
+            "/api/v1/data/indicators/:indicator/locations/:location/start/:start/end/:end",
+            get(get_un_data_indicator_location_years),
+        )
         .route("/population_timeline/latest", get(population_latest))
         .route("/hiv_infections_timeline/latest", get(hiv_latest))
         .route("/population_timeline/:key", get(population_by_key))
@@ -96,6 +231,104 @@ async fn main() {
 
 async fn healthz() -> impl IntoResponse {
     Json(json!({"ok": true}))
+}
+
+async fn get_asfr(State(st): State<AppState>, Query(q): Query<AsfrQuery>) -> impl IntoResponse {
+    let iso3 = q.iso3.trim().to_uppercase();
+    if iso3.len() != 3 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "iso3 must be a 3-letter code"})),
+        )
+            .into_response();
+    }
+    if q.year < 1950 || q.year > 2100 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "year out of supported range"})),
+        )
+            .into_response();
+    }
+
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        let mut client = Client::connect(&pg_conn_str, NoTls)
+            .with_context(|| "Failed to connect to Postgres")?;
+
+        // Return the WPP 5-year fertility ages (15-49), including uncertainty variants.
+        let rows = client
+            .query(
+                "SELECT variant_short_name, age_min, age_max, asfr, source, release FROM asfr_5yr WHERE iso3 = $1 AND year = $2 ORDER BY variant_short_name ASC, age_min ASC",
+                &[&iso3, &q.year],
+            )
+            .with_context(|| "Failed to query asfr_5yr")?;
+
+        let mut bins: Vec<AsfrBin> = Vec::with_capacity(rows.len());
+        let mut source: Option<String> = None;
+        let mut release: Option<String> = None;
+        for row in rows {
+            let variant_short_name: String = row.get(0);
+            let age_min: i32 = row.get(1);
+            let age_max: i32 = row.get(2);
+            let asfr: f64 = row.get(3);
+            let s: String = row.get(4);
+            let r: String = row.get(5);
+            if source.is_none() {
+                source = Some(s);
+            }
+            if release.is_none() {
+                release = Some(r);
+            }
+            bins.push(AsfrBin {
+                variant_short_name,
+                age_min,
+                age_max,
+                asfr,
+            });
+        }
+
+        if bins.is_empty() {
+            anyhow::bail!("no rows");
+        }
+
+        Ok::<AsfrResponse, anyhow::Error>(AsfrResponse {
+            iso3,
+            year: q.year,
+            source: format!("{} {} (cached)", source.unwrap_or_else(|| "UN_WPP".to_string()), release.unwrap_or_else(|| "".to_string())).trim().to_string(),
+            indicator: "ASFR5".to_string(),
+            unit: "births_per_woman_per_year".to_string(),
+            ages: bins,
+        })
+    });
+
+    match join.await {
+        Ok(Ok(resp)) => (StatusCode::OK, Json(resp)).into_response(),
+        Ok(Err(e)) => {
+            let msg = e.to_string();
+            if msg.contains("no rows") {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({
+                        "error": "ASFR not ingested for iso3/year. Run Airflow DAG unwpp_asfr_5yr_sur_2015_2025.",
+                        "iso3": q.iso3,
+                        "year": q.year
+                    })),
+                )
+                    .into_response()
+            } else {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": format!("failed to load ASFR from Postgres: {e}")})),
+                )
+                    .into_response()
+            }
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("join error: {e}")})),
+        )
+            .into_response(),
+    }
 }
 
 async fn run_simulation(State(st): State<AppState>, Json(req): Json<RunRequest>) -> impl IntoResponse {
