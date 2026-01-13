@@ -27,6 +27,16 @@ pub struct SeirsConfig {
     pub contact: Vec<Vec<f64>>, // C[a][b]
     pub pop: Vec<f64>,          // N[a]
 
+    // Optional demography coupling
+    // Continuous aging flow out of age bin a into a+1 at rate aging_rate_per_day[a].
+    // Length must be n_age; the last entry is ignored.
+    pub aging_rate_per_day: Option<Vec<f64>>,
+    // Fertility rate (births per woman per day) associated with each age bin.
+    // Length must be n_age.
+    pub fertility_per_day: Option<Vec<f64>>,
+    // Fraction of each age bin that is female (used for births). Default 0.5.
+    pub female_fraction: f64,
+
     // Optional vaccination rate per age (per day), applied to S
     pub vacc_rate: Option<Vec<f64>>,
 }
@@ -46,6 +56,9 @@ impl SeirsConfig {
         anyhow::ensure!(self.contact.iter().all(|r| r.len() == self.n_age), "contact must be square n_age x n_age");
         anyhow::ensure!(self.pop.len() == self.n_age, "pop.len != n_age");
         if let Some(v) = &self.vacc_rate { anyhow::ensure!(v.len() == self.n_age, "vacc_rate.len != n_age"); }
+        if let Some(v) = &self.aging_rate_per_day { anyhow::ensure!(v.len() == self.n_age, "aging_rate_per_day.len != n_age"); }
+        if let Some(v) = &self.fertility_per_day { anyhow::ensure!(v.len() == self.n_age, "fertility_per_day.len != n_age"); }
+        anyhow::ensure!((0.0..=1.0).contains(&self.female_fraction), "female_fraction must be in [0,1]");
         anyhow::ensure!(self.k_e >= 1 && self.k_i >= 1, "k_e and k_i must be >= 1");
         anyhow::ensure!(self.mu >= 0.0 && self.mu_i_extra >= 0.0, "mu and mu_i_extra must be >= 0");
         Ok(())
@@ -172,6 +185,38 @@ impl SeirsModel {
             dy[r_idx] += inflow_r - cfg.omega * y[r_idx];
             dy[r_idx] -= cfg.mu * y[r_idx];
             dy[s_idx] += cfg.omega * y[r_idx];
+        }
+
+        // Demography coupling (optional)
+        // 1) Continuous births into youngest age bin (added to S0)
+        if let Some(fert) = &cfg.fertility_per_day {
+            let ff = cfg.female_fraction;
+            let mut births_per_day = 0.0;
+            for a in 0..cfg.n_age {
+                // Approximate female exposure as a constant fraction of current N[a]
+                births_per_day += (n_by_age[a].max(0.0) * ff) * fert[a].max(0.0);
+            }
+            let (s0, _e0, _i0, _r0) = indices(cfg, 0);
+            dy[s0] += births_per_day;
+        }
+
+        // 2) Continuous aging flows between bins (applied to all compartments)
+        if let Some(aging) = &cfg.aging_rate_per_day {
+            let block = 1 + cfg.k_e + cfg.k_i + 1;
+            for a in 0..cfg.n_age.saturating_sub(1) {
+                let rate = aging[a].max(0.0);
+                if rate <= 0.0 {
+                    continue;
+                }
+                let base_a = a * block;
+                let base_b = (a + 1) * block;
+                for off in 0..block {
+                    let v = y[base_a + off];
+                    let flow = rate * v;
+                    dy[base_a + off] -= flow;
+                    dy[base_b + off] += flow;
+                }
+            }
         }
     }
 

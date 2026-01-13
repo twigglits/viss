@@ -14,7 +14,7 @@ use serde_json::json;
 use postgres::{Client, NoTls};
 
 use vrust::calibration::beta0_from_r0;
-use vrust::io::age_pyramid_pg::load_age_pyramid_5yr_pg;
+use vrust::io::age_pyramid_pg::{load_age_pyramid_5yr_pg, AGE_BINS_5YR};
 use vrust::io::contact_synth::synthetic_contact_matrix;
 use vrust::model::seirs::{SeirsConfig, SeirsModel, SeirsState};
 
@@ -365,6 +365,20 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         )
     })?;
 
+    let fertility_per_day = load_asfr_fertility_per_day_pg(pg_conn_str, &iso3, year, pop.len()).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            json!({"return_code": 1, "error": format!("failed to load ASFR fertility: {e}")}),
+        )
+    })?;
+
+    let aging_rate_per_day = aging_rates_per_day_from_bins(pop.len()).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            json!({"return_code": 1, "error": format!("failed to derive aging rates: {e}")}),
+        )
+    })?;
+
     let n_age = pop.len();
     let contact = synthetic_contact_matrix(n_age);
 
@@ -389,6 +403,9 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         beta_schedule: vec![(0.0, 1.0)],
         contact,
         pop: pop.clone(),
+        aging_rate_per_day: Some(aging_rate_per_day),
+        fertility_per_day: Some(fertility_per_day),
+        female_fraction: 0.5,
         vacc_rate: None,
     };
 
@@ -456,6 +473,90 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         population_timeline_key: format!("seirs:{}:population", run_id),
         hiv_infections_timeline_key: format!("seirs:{}:infected", run_id),
     })
+}
+
+fn aging_rates_per_day_from_bins(n_age: usize) -> anyhow::Result<Vec<f64>> {
+    anyhow::ensure!(n_age == AGE_BINS_5YR.len(), "unexpected n_age: expected {} got {}", AGE_BINS_5YR.len(), n_age);
+    let mut out = Vec::with_capacity(n_age);
+    for (i, b) in AGE_BINS_5YR.iter().enumerate() {
+        if i == n_age - 1 {
+            out.push(0.0);
+            continue;
+        }
+        if let Some((a, z)) = b.split_once('-') {
+            let a: i32 = a.parse().with_context(|| format!("invalid age bin start: {b}"))?;
+            let z: i32 = z.parse().with_context(|| format!("invalid age bin end: {b}"))?;
+            let width_years = (z - a + 1) as f64;
+            anyhow::ensure!(width_years > 0.0, "invalid width for bin {b}");
+            out.push(1.0 / (width_years * 365.0));
+        } else if b.ends_with('+') {
+            out.push(0.0);
+        } else {
+            anyhow::bail!("unsupported age bin format: {b}");
+        }
+    }
+    Ok(out)
+}
+
+fn load_asfr_fertility_per_day_pg(pg_conn_str: &str, iso3: &str, year: i32, n_age: usize) -> anyhow::Result<Vec<f64>> {
+    anyhow::ensure!(n_age == AGE_BINS_5YR.len(), "unexpected n_age: expected {} got {}", AGE_BINS_5YR.len(), n_age);
+    let mut client = Client::connect(pg_conn_str, NoTls).with_context(|| "Failed to connect to Postgres")?;
+
+    // Use MEDIAN variant as the default fertility schedule.
+    let rows = client
+        .query(
+            "SELECT age_min, age_max, asfr FROM asfr_5yr WHERE iso3 = $1 AND year = $2 AND variant_short_name = 'MEDIAN' ORDER BY age_min ASC",
+            &[&iso3.to_uppercase(), &year],
+        )
+        .with_context(|| "Failed to query asfr_5yr")?;
+
+    anyhow::ensure!(!rows.is_empty(), "no ASFR rows found for iso3={} year={} variant=MEDIAN", iso3, year);
+
+    // Aggregate ASFR rows (which may be single-year or 5-year bins) into our 5-year model bins.
+    // We do overlap-weighted averaging so both granular and coarse source bins work.
+    // NOTE: UN/WPP ASFR is typically reported as births per 1,000 women per year.
+    let mut fert_per_year_num = vec![0.0_f64; n_age];
+    let mut fert_per_year_den = vec![0.0_f64; n_age];
+
+    for row in rows {
+        let age_min: i32 = row.get(0);
+        let age_max: i32 = row.get(1);
+        let asfr_per_1000_women_per_year: f64 = row.get(2);
+
+        // Only use reproductive ages.
+        if age_max < 15 || age_min > 49 {
+            continue;
+        }
+
+        for (idx, b) in AGE_BINS_5YR.iter().enumerate() {
+            let (bin_min, bin_max) = if let Some((a, z)) = b.split_once('-') {
+                (a.parse::<i32>().with_context(|| format!("invalid age bin start: {b}"))?, z.parse::<i32>().with_context(|| format!("invalid age bin end: {b}"))?)
+            } else {
+                continue;
+            };
+
+            // Overlap in years (inclusive integer ages)
+            let lo = age_min.max(bin_min);
+            let hi = age_max.min(bin_max);
+            if hi < lo {
+                continue;
+            }
+            let overlap_years = (hi - lo + 1) as f64;
+            fert_per_year_num[idx] += asfr_per_1000_women_per_year.max(0.0) * overlap_years;
+            fert_per_year_den[idx] += overlap_years;
+        }
+    }
+
+    let mut fert_per_day = vec![0.0_f64; n_age];
+    for i in 0..n_age {
+        if fert_per_year_den[i] > 0.0 {
+            let avg_per_year = fert_per_year_num[i] / fert_per_year_den[i];
+            // births per 1,000 women per year -> births per woman per day
+            fert_per_day[i] = (avg_per_year / 1000.0 / 365.0).max(0.0);
+        }
+    }
+
+    Ok(fert_per_day)
 }
 
 async fn population_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) -> impl IntoResponse {
