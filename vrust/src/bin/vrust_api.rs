@@ -194,6 +194,7 @@ struct RunResponse {
     seed: f64,
     population_timeline_key: String,
     hiv_infections_timeline_key: String,
+    hiv_incidence_timeline_key: String,
 }
 #[tokio::main]
 async fn main() {
@@ -218,8 +219,10 @@ async fn main() {
         )
         .route("/population_timeline/latest", get(population_latest))
         .route("/hiv_infections_timeline/latest", get(hiv_latest))
+        .route("/hiv_incidence_timeline/latest", get(incidence_latest))
         .route("/population_timeline/:key", get(population_by_key))
         .route("/hiv_infections_timeline/:key", get(hiv_by_key))
+        .route("/hiv_incidence_timeline/:key", get(incidence_by_key))
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse().expect("invalid HOST/PORT");
@@ -431,12 +434,16 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     // Convert to timeline arrays: [[t, value], ...]
     let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
     let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+    let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
     for (t, y) in &traj {
         let (s_tot, e_tot, i_tot, r_tot) = totals(&model.cfg, y);
         let pop_tot = (s_tot + e_tot + i_tot + r_tot).ceil();
         let infected_tot = i_tot.ceil();
         population_timeline.push((*t, pop_tot));
         infected_timeline.push((*t, infected_tot));
+        let denom = (s_tot + e_tot + i_tot + r_tot).max(0.0);
+        let incidence_pct = if denom > 0.0 { (100.0 * i_tot / denom).max(0.0) } else { 0.0 };
+        incidence_timeline.push((*t, incidence_pct));
     }
 
     // Persist to Postgres
@@ -450,6 +457,7 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         dt,
         &population_timeline,
         &infected_timeline,
+        &incidence_timeline,
     )
         .map_err(|e| {
             (
@@ -472,6 +480,7 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         seed: seed_infections,
         population_timeline_key: format!("seirs:{}:population", run_id),
         hiv_infections_timeline_key: format!("seirs:{}:infected", run_id),
+        hiv_incidence_timeline_key: format!("seirs:{}:incidence", run_id),
     })
 }
 
@@ -583,6 +592,18 @@ async fn hiv_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) ->
     }
 }
 
+async fn incidence_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) -> impl IntoResponse {
+    let pg_conn_str = st.pg_conn_str.clone();
+    let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
+    let year = q.year.unwrap_or(2025);
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "incidence"));
+    match join.await {
+        Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("join error: {e}")}))).into_response(),
+    }
+}
+
 async fn population_by_key(State(st): State<AppState>, Path(key): Path<String>) -> impl IntoResponse {
     let pg_conn_str = st.pg_conn_str.clone();
     let join = tokio::task::spawn_blocking(move || fetch_series_by_key(&pg_conn_str, &key, "population"));
@@ -603,6 +624,16 @@ async fn hiv_by_key(State(st): State<AppState>, Path(key): Path<String>) -> impl
     }
 }
 
+async fn incidence_by_key(State(st): State<AppState>, Path(key): Path<String>) -> impl IntoResponse {
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join = tokio::task::spawn_blocking(move || fetch_series_by_key(&pg_conn_str, &key, "incidence"));
+    match join.await {
+        Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("join error: {e}")}))).into_response(),
+    }
+}
+
 fn persist_run(
     pg_conn_str: &str,
     run_id: &str,
@@ -613,6 +644,7 @@ fn persist_run(
     dt: f64,
     population: &[(f64, f64)],
     infected: &[(f64, f64)],
+    incidence: &[(f64, f64)],
 ) -> anyhow::Result<()> {
     let mut client = Client::connect(pg_conn_str, NoTls)
         .with_context(|| format!("postgres connect failed (conn_str={})", redact_conn_str(pg_conn_str)))?;
@@ -636,6 +668,7 @@ fn persist_run(
               t DOUBLE PRECISION NOT NULL,
               population DOUBLE PRECISION NOT NULL,
               infected DOUBLE PRECISION NOT NULL,
+              incidence_pct DOUBLE PRECISION,
               PRIMARY KEY (run_id, t)
             );
 
@@ -644,6 +677,14 @@ fn persist_run(
             "#,
         )
     .context("postgres schema ensure failed")?;
+
+    // Backfill/migrate older schema versions
+    client
+        .execute(
+            "ALTER TABLE seirs_series_points ADD COLUMN IF NOT EXISTS incidence_pct DOUBLE PRECISION",
+            &[],
+        )
+        .context("alter seirs_series_points add incidence_pct failed")?;
 
     let _ = (seed_infections, t_end, dt);
     client.execute(
@@ -658,13 +699,14 @@ fn persist_run(
         .context("delete existing seirs_series_points failed")?;
 
     let stmt = client
-        .prepare("INSERT INTO seirs_series_points (run_id, t, population, infected) VALUES ($1,$2,$3,$4)")
+        .prepare("INSERT INTO seirs_series_points (run_id, t, population, infected, incidence_pct) VALUES ($1,$2,$3,$4,$5)")
         .context("prepare insert seirs_series_points failed")?;
 
-    for ((t1, p), (t2, i)) in population.iter().zip(infected.iter()) {
+    for (((t1, p), (t2, i)), (t3, inc)) in population.iter().zip(infected.iter()).zip(incidence.iter()) {
         anyhow::ensure!((t1 - t2).abs() < 1e-9, "timeline t mismatch");
+        anyhow::ensure!((t1 - t3).abs() < 1e-9, "timeline t mismatch");
         client
-            .execute(&stmt, &[&run_id, t1, p, i])
+            .execute(&stmt, &[&run_id, t1, p, i, inc])
             .with_context(|| format!("insert seirs_series_points failed at t={}", t1))?;
     }
 
@@ -703,7 +745,7 @@ fn fetch_series_by_key(pg_conn_str: &str, key: &str, kind: &str) -> Result<Vec<[
 fn fetch_series_for_run(client: &mut Client, run_id: &str, kind: &str) -> Result<Vec<[f64; 2]>, String> {
     let rows = client
         .query(
-            "SELECT t, population, infected FROM seirs_series_points WHERE run_id=$1 ORDER BY t ASC",
+            "SELECT t, population, infected, COALESCE(incidence_pct, CASE WHEN population > 0 THEN (infected / population) * 100.0 ELSE 0 END) AS incidence_pct FROM seirs_series_points WHERE run_id=$1 ORDER BY t ASC",
             &[&run_id],
         )
         .map_err(|e| e.to_string())?;
@@ -717,9 +759,11 @@ fn fetch_series_for_run(client: &mut Client, run_id: &str, kind: &str) -> Result
         let t: f64 = r.get(0);
         let population: f64 = r.get(1);
         let infected: f64 = r.get(2);
+        let incidence_pct: f64 = r.get(3);
         let v = match kind {
             "population" => population,
             "infected" => infected,
+            "incidence" => incidence_pct,
             _ => return Err("invalid kind".to_string()),
         };
         out.push([t, v]);
