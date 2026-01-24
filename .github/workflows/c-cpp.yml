@@ -20,9 +20,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            viss/vrust
+            vrust
       - name: Run Rust tests (vrust)
-        working-directory: viss/vrust
+        working-directory: vrust
         run: cargo test --workspace --all-targets -- --nocapture
 
       # - name: Log in to GitHub Container Registry
