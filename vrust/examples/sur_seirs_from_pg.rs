@@ -44,6 +44,9 @@ fn main() -> anyhow::Result<()> {
         beta_schedule: vec![(0.0, 1.0)],
         contact,
         pop: pop.clone(),
+        aging_rate_per_day: None,
+        fertility_per_day: None,
+        female_fraction: 0.5,
         vacc_rate: None,
     };
 

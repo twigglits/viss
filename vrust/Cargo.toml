@@ -22,6 +22,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 axum = "0.7"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+[dev-dependencies]
+insta = "1"
+tempfile = "3"
+
 [features]
 default = []
 parallel = ["rayon"]

@@ -16,6 +16,7 @@ use postgres::{Client, NoTls};
 use vrust::calibration::beta0_from_r0;
 use vrust::io::age_pyramid_pg::{load_age_pyramid_5yr_pg, AGE_BINS_5YR};
 use vrust::io::contact_synth::synthetic_contact_matrix;
+use vrust::io::debug_log::write_seirs_debug_log;
 use vrust::model::seirs::{SeirsConfig, SeirsModel, SeirsState};
 
 #[derive(Clone)]
@@ -125,6 +126,8 @@ struct RunRequest {
     seed_infections: Option<f64>,
     t_end_days: Option<f64>,
     dt_days: Option<f64>,
+    debug: Option<bool>,
+    debug_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -358,7 +361,14 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     let t_end = req.t_end_days.unwrap_or(365.0).max(1.0);
     let dt = req.dt_days.unwrap_or(0.25).max(1e-6);
 
-    let run_id = format!("{}-{}-{}", iso3, year, chronoish_now_millis());
+    let debug = req.debug.unwrap_or(false);
+    let debug_id = req.debug_id.clone().unwrap_or_default();
+
+    let run_id = if debug && !debug_id.trim().is_empty() {
+        format!("{}-{}-{}", iso3, year, debug_id.trim())
+    } else {
+        format!("{}-{}-{}", iso3, year, chronoish_now_millis())
+    };
 
     // Build model input
     let (_labels, pop) = load_age_pyramid_5yr_pg(pg_conn_str, &iso3, year).map_err(|e| {
@@ -446,6 +456,24 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         incidence_timeline.push((*t, incidence_pct));
     }
 
+    if debug {
+        let log_dir = std::env::var("VRUST_LOG_DIR").unwrap_or_else(|_| "logs".to_string());
+        if let Err(e) = write_debug_log(
+            &log_dir,
+            &run_id,
+            &iso3,
+            year,
+            seed_infections,
+            t_end,
+            dt,
+            &population_timeline,
+            &infected_timeline,
+            &incidence_timeline,
+        ) {
+            eprintln!("[vrust-api] debug log write failed: {e:#}");
+        }
+    }
+
     // Persist to Postgres
     persist_run(
         pg_conn_str,
@@ -482,6 +510,32 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         hiv_infections_timeline_key: format!("seirs:{}:infected", run_id),
         hiv_incidence_timeline_key: format!("seirs:{}:incidence", run_id),
     })
+}
+
+fn write_debug_log(
+    out_dir: &str,
+    run_id: &str,
+    iso3: &str,
+    year: i32,
+    seed_infections: f64,
+    t_end: f64,
+    dt: f64,
+    population: &[(f64, f64)],
+    infected: &[(f64, f64)],
+    incidence: &[(f64, f64)],
+) -> anyhow::Result<std::path::PathBuf> {
+    write_seirs_debug_log(
+        out_dir,
+        run_id,
+        iso3,
+        year,
+        seed_infections,
+        t_end,
+        dt,
+        population,
+        infected,
+        incidence,
+    )
 }
 
 fn aging_rates_per_day_from_bins(n_age: usize) -> anyhow::Result<Vec<f64>> {
