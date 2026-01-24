@@ -1,3 +1,0 @@
-EventCondom.enabled = true
-EventCondom.threshold = 0.8
-hivtransmission.threshold = 0.2

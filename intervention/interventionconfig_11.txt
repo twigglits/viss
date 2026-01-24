@@ -1,3 +1,0 @@
-hivtransmission.m_condomformationdist.dist.discrete.csv.twocol.file = /home/jeannaude/who-aids-prop/relationship_condom_use_3.csv
-EventCondom.threshold = 0.9
-hivtransmission.threshold = 0.1
