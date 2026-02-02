@@ -1,4 +1,16 @@
-# vrust: Epidemiology Simulation in Rust
+| Badges     |  |
+|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Build      | [![Build Status](https://github.com/twigglits/viss/actions/workflows/c-cpp.yml/badge.svg?branch=main)](https://github.com/twigglits/viss/actions) |
+
+### Viral Infection Simulation System (VISS)
+
+
+**The latest build of this program is pre-Alpha and should not be used for any production or research purposes.**
+
+
+VISS is an open-source simulation system for viral infections. It is a Rust-based system that uses a combination of probabilistic models to study the behavior of viruses their growth and decay over time and their impact on human populations.
+
+# VISS: Epidemiology Simulation in Rust
 
 A fast, explainable, age-structured SEIRS ODE simulator with Erlang-stage compartments, designed to integrate with WorldPop population data and contact matrices.
 
