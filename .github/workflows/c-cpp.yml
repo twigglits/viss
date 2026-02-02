@@ -36,7 +36,7 @@ jobs:
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
       - name: Build Docker image (latest and versioned)
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ env.SHORT_SHA }} .
+          docker build --no-cache -f vrust/Dockerfile -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ env.SHORT_SHA }} vrust
       - name: Push Docker image (latest)
         run: docker push ghcr.io/${{ github.repository }}:latest
       - name: Push Docker image (versioned)
