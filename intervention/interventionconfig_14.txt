@@ -1,3 +1,0 @@
-EventPrep.enabled = true
-EventPrep.threshold = 0.98
-EventPrepDrop.threshold = 0.8

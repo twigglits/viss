@@ -1,3 +1,0 @@
-diagnosis.pregnancyfactor = 0.2
-diagnosis.baseline = -1.774649560308165
-monitoring.cd4.threshold = 100

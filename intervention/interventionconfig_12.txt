@@ -1,4 +1,0 @@
-diagnosis.baseline = -0.6825212335402616
-monitoring.cd4.threshold = 500
-person.art.accept.threshold.dist.fixed.value = 0.9
-conception.alpha_base = -3.8369648258186015

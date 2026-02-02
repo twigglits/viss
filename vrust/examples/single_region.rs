@@ -36,6 +36,9 @@ fn main() -> anyhow::Result<()> {
         ],
         contact,
         pop: pop.clone(),
+        aging_rate_per_day: None,
+        fertility_per_day: None,
+        female_fraction: 0.5,
         vacc_rate: None,
     };
 

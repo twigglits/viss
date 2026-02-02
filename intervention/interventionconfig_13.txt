@@ -1,5 +1,0 @@
-diagnosis.baseline = -0.07057786016487089
-monitoring.cd4.threshold = 100000
-monitoring.m_artDist.dist.normal.mu = 0.3
-monitoring.m_artDist.dist.normal.min = 0.1
-monitoring.m_artDist.dist.normal.max = 0.5
