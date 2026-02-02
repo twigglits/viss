@@ -1,8 +1,0 @@
-diagnosis.pregnancyfactor = 0.5
-diagnosis.baseline = -0.9364181171070893
-monitoring.cd4.threshold = 350
-monitoring.m_artDist.dist.normal.mu = 0.35
-monitoring.m_artDist.dist.normal.min = 0.15
-monitoring.m_artDist.dist.normal.max = 0.55
-mortality.aids.survtime.art_e.dist.uniform.min = 25
-mortality.aids.survtime.art_e.dist.uniform.max = 45

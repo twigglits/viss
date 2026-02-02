@@ -8,44 +8,52 @@
 **The latest build of this program is pre-Alpha and should not be used for any production or research purposes.**
 
 
-VISS is an open-source simulation system for viral infections. It is a C++-based system that uses a combination of probabilistic models to study the behavior of viruses their growth and decay over time and their impact on human populations.
+VISS is an open-source simulation system for viral infections. It is a Rust-based system that uses a combination of probabilistic models to study the behavior of viruses their growth and decay over time and their impact on human populations.
 
-### Installing pre-requisites
+# VISS: Epidemiology Simulation in Rust
 
-```
-sudo apt-get install -y cmake build-essential libgsl-dev libtiff-dev libboost-all-dev libhiredis-dev
-```
+A fast, explainable, age-structured SEIRS ODE simulator with Erlang-stage compartments, designed to integrate with WorldPop population data and contact matrices.
 
-### Getting Started
-
-To get started with VISS, you will need to have a C++ compiler and CMake installed on your system. You can then clone the repository and build the system with the following  commands:
+## Installation
 
 ```bash
-mkdir -p build && cd build && cmake .. && make -j4 && cd ..
+cargo clean && cargo update && cargo build --release
 ```
 
-For building a core set of binaries instead use:
+## Features
+- Deterministic SEIRS with age structure and configurable Erlang stages (k_E, k_I)
+- Contact-matrix-based force of infection (Prem et al.-style)
+- Piecewise-constant time-varying transmission multiplier m(t)
+- Simple RK4 integrator for speed and determinism
+- Calibration helper: compute beta0 for a target R0 using power iteration (spectral radius)
+- CSV loaders for population by age and contact matrix
+- Example: single-region, multi-age simulation
+
+## Getting started
 ```bash
-mkdir -p build && cd build && cmake .. && make -j4 redis++ viss-release viss-api && cd ..
+cargo run --release --bin single_region
 ```
 
-To run the program, you can use the following command:
+## Data inputs
+- Population CSV: header row, columns: `age_group,pop`
+- Contact matrix CSV: square matrix with header row/col optional (will try to parse numeric cells)
 
-```bash
-./build/viss-release test_config1.txt 0 opt -o
-```
+These can be replaced later with aggregated WorldPop outputs.
 
-For debugging our program it is:
-```bash
-./build/viss-debug test_config1.txt 0 opt -o
-```
+## Roadmap
+- Add stochastic CTMC (Gillespie)
+- Add observation model (delayed NegBinon cases)
+- Add multi-region coupling
+- Add tests and benchmarking
+
+## License
+GNU GPL v3
 
 ### Diseases
 
 VISS supports a variety of diseases that can be used to study the impact of different interventions on viral infections. These diseases include:
 
 - HIV
-- HSV2
 
 ### SEIRS model (mathematical definition)
 
@@ -83,10 +91,14 @@ The infection (incidence) term **β (S I / N)** corresponds to frequency-depende
 
 Summing the four equations gives dN/dt = (b − d) N. In particular, when b = d the total population remains constant.
 
-### Interventions
+### Interventions Roadmap
 
-VISS supports a variety of interventions that can be used to study the impact of different interventions on viral infections. These interventions include:
+In the future, VISS will support a variety of interventions that can be used to study the impact of different interventions on viral infections. These interventions include:
 
+- Pre-exposure prophylaxis (PrEP)
+- Post-exposure prophylaxis (PEP)
 - Antiretroviral therapy (ART)
-- Circumcision
+- Vaccination
+- Voluntary Male Circumcision (VMMC)
+- Voluntary Female Circumcision (VFC)
 - Condom-use
