@@ -16,8 +16,10 @@ use postgres::{Client, NoTls};
 use vrust::calibration::beta0_from_r0;
 use vrust::io::age_pyramid_pg::{load_age_pyramid_5yr_pg, AGE_BINS_5YR};
 use vrust::io::contact_synth::synthetic_contact_matrix;
-use vrust::io::debug_log::write_seirs_debug_log;
+use vrust::io::debug_log::write_model_debug_log;
 use vrust::model::seirs::{SeirsConfig, SeirsModel, SeirsState};
+use vrust::model::sir::{SirConfig, SirModel, SirState};
+use vrust::model::sis::{SisConfig, SisModel, SisState};
 
 #[derive(Clone)]
 struct AppState {
@@ -123,6 +125,7 @@ fn redact_conn_str(s: &str) -> String {
 struct RunRequest {
     iso3: Option<String>,
     year: Option<i32>,
+    model: Option<String>,
     seed_infections: Option<f64>,
     t_end_days: Option<f64>,
     dt_days: Option<f64>,
@@ -134,6 +137,7 @@ struct RunRequest {
 struct LatestQuery {
     iso3: Option<String>,
     year: Option<i32>,
+    model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -357,6 +361,18 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     let iso3 = req.iso3.unwrap_or_else(|| "SUR".to_string()).to_uppercase();
     let year = req.year.unwrap_or(2025);
 
+    let model_name = req
+        .model
+        .unwrap_or_else(|| "seirs".to_string())
+        .trim()
+        .to_lowercase();
+    if model_name != "seirs" && model_name != "sir" && model_name != "sis" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            json!({"return_code": 1, "error": "invalid model; expected one of: seirs, sir, sis"}),
+        ));
+    }
+
     let seed_infections = req.seed_infections.unwrap_or(10.0).max(0.0);
     let t_end = req.t_end_days.unwrap_or(365.0).max(1.0);
     let dt = req.dt_days.unwrap_or(0.25).max(1e-6);
@@ -365,9 +381,9 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     let debug_id = req.debug_id.clone().unwrap_or_default();
 
     let run_id = if debug && !debug_id.trim().is_empty() {
-        format!("{}-{}-{}", iso3, year, debug_id.trim())
+        format!("{}-{}-{}-{}", &model_name, iso3, year, debug_id.trim())
     } else {
-        format!("{}-{}-{}", iso3, year, chronoish_now_millis())
+        format!("{}-{}-{}-{}", &model_name, iso3, year, chronoish_now_millis())
     };
 
     // Build model input
@@ -403,32 +419,6 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     let r0 = 1.5;
     let beta0 = beta0_from_r0(&contact, gamma, r0);
 
-    let cfg = SeirsConfig {
-        n_age,
-        k_e: 1,
-        k_i: 1,
-        sigma,
-        gamma,
-        omega: 0.0,
-        mu,
-        mu_i_extra,
-        beta0,
-        beta_schedule: vec![(0.0, 1.0)],
-        contact,
-        pop: pop.clone(),
-        aging_rate_per_day: Some(aging_rate_per_day),
-        fertility_per_day: Some(fertility_per_day),
-        female_fraction: 0.5,
-        vacc_rate: None,
-    };
-
-    let model = SeirsModel::new(cfg).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
-        )
-    })?;
-
     // Seed infections proportional to population
     let total_pop: f64 = pop.iter().sum();
     let mut seeding = vec![0.0; n_age];
@@ -438,27 +428,154 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         }
     }
 
-    let mut state = SeirsState::init_from_seeding(&model.cfg, &seeding);
-    let traj = model.simulate(&mut state, 0.0, t_end, dt);
+    let (population_timeline, infected_timeline, incidence_timeline) = match model_name.as_str() {
+        "seirs" => {
+            let cfg = SeirsConfig {
+                n_age,
+                k_e: 1,
+                k_i: 1,
+                sigma,
+                gamma,
+                omega: 0.0,
+                mu,
+                mu_i_extra,
+                beta0,
+                beta_schedule: vec![(0.0, 1.0)],
+                contact: contact.clone(),
+                pop: pop.clone(),
+                aging_rate_per_day: Some(aging_rate_per_day.clone()),
+                fertility_per_day: Some(fertility_per_day.clone()),
+                female_fraction: 0.5,
+                vacc_rate: None,
+            };
 
-    // Convert to timeline arrays: [[t, value], ...]
-    let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
-    let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
-    let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
-    for (t, y) in &traj {
-        let (s_tot, e_tot, i_tot, r_tot) = totals(&model.cfg, y);
-        let pop_tot = (s_tot + e_tot + i_tot + r_tot).ceil();
-        let infected_tot = i_tot.ceil();
-        population_timeline.push((*t, pop_tot));
-        infected_timeline.push((*t, infected_tot));
-        let denom = (s_tot + e_tot + i_tot + r_tot).max(0.0);
-        let incidence_pct = if denom > 0.0 { (100.0 * i_tot / denom).max(0.0) } else { 0.0 };
-        incidence_timeline.push((*t, incidence_pct));
-    }
+            let model = SeirsModel::new(cfg).map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
+                )
+            })?;
+
+            let mut state = SeirsState::init_from_seeding(&model.cfg, &seeding);
+            let traj = model.simulate(&mut state, 0.0, t_end, dt);
+
+            let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            for (t, y) in &traj {
+                let (s_tot, e_tot, i_tot, r_tot) = totals_seirs(&model.cfg, y);
+                let pop_tot = (s_tot + e_tot + i_tot + r_tot).ceil();
+                let infected_tot = i_tot.ceil();
+                population_timeline.push((*t, pop_tot));
+                infected_timeline.push((*t, infected_tot));
+                let denom = (s_tot + e_tot + i_tot + r_tot).max(0.0);
+                let incidence_pct = if denom > 0.0 {
+                    (100.0 * i_tot / denom).max(0.0)
+                } else {
+                    0.0
+                };
+                incidence_timeline.push((*t, incidence_pct));
+            }
+            (population_timeline, infected_timeline, incidence_timeline)
+        }
+        "sir" => {
+            let cfg = SirConfig {
+                n_age,
+                k_i: 1,
+                gamma,
+                mu,
+                mu_i_extra,
+                beta0,
+                beta_schedule: vec![(0.0, 1.0)],
+                contact: contact.clone(),
+                pop: pop.clone(),
+                aging_rate_per_day: Some(aging_rate_per_day.clone()),
+                fertility_per_day: Some(fertility_per_day.clone()),
+                female_fraction: 0.5,
+                vacc_rate: None,
+            };
+
+            let model = SirModel::new(cfg).map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
+                )
+            })?;
+
+            let mut state = SirState::init_from_seeding(&model.cfg, &seeding);
+            let traj = model.simulate(&mut state, 0.0, t_end, dt);
+
+            let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            for (t, y) in &traj {
+                let (s_tot, i_tot, r_tot) = totals_sir(&model.cfg, y);
+                let pop_tot = (s_tot + i_tot + r_tot).ceil();
+                let infected_tot = i_tot.ceil();
+                population_timeline.push((*t, pop_tot));
+                infected_timeline.push((*t, infected_tot));
+                let denom = (s_tot + i_tot + r_tot).max(0.0);
+                let incidence_pct = if denom > 0.0 {
+                    (100.0 * i_tot / denom).max(0.0)
+                } else {
+                    0.0
+                };
+                incidence_timeline.push((*t, incidence_pct));
+            }
+            (population_timeline, infected_timeline, incidence_timeline)
+        }
+        "sis" => {
+            let cfg = SisConfig {
+                n_age,
+                k_i: 1,
+                gamma,
+                mu,
+                mu_i_extra,
+                beta0,
+                beta_schedule: vec![(0.0, 1.0)],
+                contact: contact.clone(),
+                pop: pop.clone(),
+                aging_rate_per_day: Some(aging_rate_per_day.clone()),
+                fertility_per_day: Some(fertility_per_day.clone()),
+                female_fraction: 0.5,
+            };
+
+            let model = SisModel::new(cfg).map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
+                )
+            })?;
+
+            let mut state = SisState::init_from_seeding(&model.cfg, &seeding);
+            let traj = model.simulate(&mut state, 0.0, t_end, dt);
+
+            let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
+            for (t, y) in &traj {
+                let (s_tot, i_tot) = totals_sis(&model.cfg, y);
+                let pop_tot = (s_tot + i_tot).ceil();
+                let infected_tot = i_tot.ceil();
+                population_timeline.push((*t, pop_tot));
+                infected_timeline.push((*t, infected_tot));
+                let denom = (s_tot + i_tot).max(0.0);
+                let incidence_pct = if denom > 0.0 {
+                    (100.0 * i_tot / denom).max(0.0)
+                } else {
+                    0.0
+                };
+                incidence_timeline.push((*t, incidence_pct));
+            }
+            (population_timeline, infected_timeline, incidence_timeline)
+        }
+        _ => unreachable!(),
+    };
 
     if debug {
         let log_dir = std::env::var("VRUST_LOG_DIR").unwrap_or_else(|_| "logs".to_string());
-        if let Err(e) = write_debug_log(
+        if let Err(e) = write_model_debug_log(
+            &model_name,
             &log_dir,
             &run_id,
             &iso3,
@@ -480,6 +597,7 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         &run_id,
         &iso3,
         year,
+        &model_name,
         seed_infections,
         t_end,
         dt,
@@ -506,36 +624,10 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         end_population,
         time: t_end,
         seed: seed_infections,
-        population_timeline_key: format!("seirs:{}:population", run_id),
-        hiv_infections_timeline_key: format!("seirs:{}:infected", run_id),
-        hiv_incidence_timeline_key: format!("seirs:{}:incidence", run_id),
+        population_timeline_key: format!("{}:{}:population", &model_name, run_id),
+        hiv_infections_timeline_key: format!("{}:{}:infected", &model_name, run_id),
+        hiv_incidence_timeline_key: format!("{}:{}:incidence", &model_name, run_id),
     })
-}
-
-fn write_debug_log(
-    out_dir: &str,
-    run_id: &str,
-    iso3: &str,
-    year: i32,
-    seed_infections: f64,
-    t_end: f64,
-    dt: f64,
-    population: &[(f64, f64)],
-    infected: &[(f64, f64)],
-    incidence: &[(f64, f64)],
-) -> anyhow::Result<std::path::PathBuf> {
-    write_seirs_debug_log(
-        out_dir,
-        run_id,
-        iso3,
-        year,
-        seed_infections,
-        t_end,
-        dt,
-        population,
-        infected,
-        incidence,
-    )
 }
 
 fn aging_rates_per_day_from_bins(n_age: usize) -> anyhow::Result<Vec<f64>> {
@@ -626,7 +718,8 @@ async fn population_latest(State(st): State<AppState>, Query(q): Query<LatestQue
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "population"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "population"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -638,7 +731,8 @@ async fn hiv_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) ->
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "infected"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "infected"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -650,7 +744,8 @@ async fn incidence_latest(State(st): State<AppState>, Query(q): Query<LatestQuer
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "incidence"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "incidence"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -693,6 +788,7 @@ fn persist_run(
     run_id: &str,
     iso3: &str,
     year: i32,
+    model: &str,
     seed_infections: f64,
     t_end: f64,
     dt: f64,
@@ -703,6 +799,8 @@ fn persist_run(
     let mut client = Client::connect(pg_conn_str, NoTls)
         .with_context(|| format!("postgres connect failed (conn_str={})", redact_conn_str(pg_conn_str)))?;
 
+    let model_lc = model.trim().to_lowercase();
+
     client
         .batch_execute(
             r#"
@@ -710,6 +808,7 @@ fn persist_run(
               id TEXT PRIMARY KEY,
               iso3 TEXT NOT NULL,
               year INTEGER NOT NULL,
+              model TEXT NOT NULL,
               params JSONB,
               created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -735,6 +834,13 @@ fn persist_run(
     // Backfill/migrate older schema versions
     client
         .execute(
+            "ALTER TABLE seirs_runs ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT 'seirs'",
+            &[],
+        )
+        .context("alter seirs_runs add model failed")?;
+
+    client
+        .execute(
             "ALTER TABLE seirs_series_points ADD COLUMN IF NOT EXISTS incidence_pct DOUBLE PRECISION",
             &[],
         )
@@ -742,8 +848,8 @@ fn persist_run(
 
     let _ = (seed_infections, t_end, dt);
     client.execute(
-        "INSERT INTO seirs_runs (id, iso3, year, params) VALUES ($1,$2,$3,NULL) ON CONFLICT (id) DO NOTHING",
-        &[&run_id, &iso3, &year],
+        "INSERT INTO seirs_runs (id, iso3, year, model, params) VALUES ($1,$2,$3,$4,NULL) ON CONFLICT (id) DO NOTHING",
+        &[&run_id, &iso3, &year, &model_lc],
     )
     .context("insert into seirs_runs failed")?;
 
@@ -767,13 +873,15 @@ fn persist_run(
     Ok(())
 }
 
-fn fetch_latest_series(pg_conn_str: &str, iso3: &str, year: i32, kind: &str) -> Result<Vec<[f64; 2]>, String> {
+fn fetch_latest_series(pg_conn_str: &str, iso3: &str, year: i32, model: &str, kind: &str) -> Result<Vec<[f64; 2]>, String> {
     let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
+
+    let model_lc = model.trim().to_lowercase();
 
     let row = client
         .query_opt(
-            "SELECT id FROM seirs_runs WHERE iso3=$1 AND year=$2 ORDER BY created_at DESC LIMIT 1",
-            &[&iso3.to_uppercase(), &year],
+            "SELECT id FROM seirs_runs WHERE iso3=$1 AND year=$2 AND model=$3 ORDER BY created_at DESC LIMIT 1",
+            &[&iso3.to_uppercase(), &year, &model_lc],
         )
         .map_err(|e| e.to_string())?;
 
@@ -786,9 +894,9 @@ fn fetch_latest_series(pg_conn_str: &str, iso3: &str, year: i32, kind: &str) -> 
 }
 
 fn fetch_series_by_key(pg_conn_str: &str, key: &str, kind: &str) -> Result<Vec<[f64; 2]>, String> {
-    // expected key: seirs:<run_id>:population|infected
+    // expected key: seirs|sir|sis:<run_id>:population|infected|incidence
     let parts: Vec<&str> = key.split(':').collect();
-    if parts.len() < 3 || parts[0] != "seirs" {
+    if parts.len() < 3 || (parts[0] != "seirs" && parts[0] != "sir" && parts[0] != "sis") {
         return Err("invalid key".to_string());
     }
     let run_id = parts[1];
@@ -825,7 +933,7 @@ fn fetch_series_for_run(client: &mut Client, run_id: &str, kind: &str) -> Result
     Ok(out)
 }
 
-fn totals(cfg: &SeirsConfig, y: &[f64]) -> (f64, f64, f64, f64) {
+fn totals_seirs(cfg: &SeirsConfig, y: &[f64]) -> (f64, f64, f64, f64) {
     let mut s_tot = 0.0;
     let mut e_tot = 0.0;
     let mut i_tot = 0.0;
@@ -848,6 +956,43 @@ fn totals(cfg: &SeirsConfig, y: &[f64]) -> (f64, f64, f64, f64) {
         r_tot += y[r_idx];
     }
     (s_tot, e_tot, i_tot, r_tot)
+}
+
+fn totals_sir(cfg: &SirConfig, y: &[f64]) -> (f64, f64, f64) {
+    let mut s_tot = 0.0;
+    let mut i_tot = 0.0;
+    let mut r_tot = 0.0;
+    for a in 0..cfg.n_age {
+        let block = 1 + cfg.k_i + 1;
+        let base = a * block;
+        let s_idx = base;
+        let i0 = base + 1;
+        let r_idx = i0 + cfg.k_i;
+
+        s_tot += y[s_idx];
+        for j in 0..cfg.k_i {
+            i_tot += y[i0 + j];
+        }
+        r_tot += y[r_idx];
+    }
+    (s_tot, i_tot, r_tot)
+}
+
+fn totals_sis(cfg: &SisConfig, y: &[f64]) -> (f64, f64) {
+    let mut s_tot = 0.0;
+    let mut i_tot = 0.0;
+    for a in 0..cfg.n_age {
+        let block = 1 + cfg.k_i;
+        let base = a * block;
+        let s_idx = base;
+        let i0 = base + 1;
+
+        s_tot += y[s_idx];
+        for j in 0..cfg.k_i {
+            i_tot += y[i0 + j];
+        }
+    }
+    (s_tot, i_tot)
 }
 
 fn chronoish_now_millis() -> u128 {

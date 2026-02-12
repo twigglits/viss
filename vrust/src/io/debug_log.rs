@@ -1,6 +1,7 @@
 use anyhow::Context;
 
-pub fn write_seirs_debug_log(
+pub fn write_model_debug_log(
+    model: &str,
     out_dir: impl AsRef<std::path::Path>,
     run_id: &str,
     iso3: &str,
@@ -15,11 +16,14 @@ pub fn write_seirs_debug_log(
     use std::io::Write;
 
     std::fs::create_dir_all(out_dir.as_ref()).context("create logs dir failed")?;
-    let path = out_dir.as_ref().join(format!("seirs_{}.txt", run_id));
+    let path = out_dir
+        .as_ref()
+        .join(format!("{}_{}.txt", model.to_lowercase(), run_id));
     let mut f = std::fs::File::create(&path)
         .with_context(|| format!("create debug log file failed (path={:?})", path))?;
 
     writeln!(f, "run_id={}", run_id)?;
+    writeln!(f, "model={}", model)?;
     writeln!(f, "iso3={}", iso3)?;
     writeln!(f, "year={}", year)?;
     writeln!(f, "seed_infections={:.6}", seed_infections)?;
@@ -36,3 +40,31 @@ pub fn write_seirs_debug_log(
 
     Ok(path)
 }
+
+pub fn write_seirs_debug_log(
+    out_dir: impl AsRef<std::path::Path>,
+    run_id: &str,
+    iso3: &str,
+    year: i32,
+    seed_infections: f64,
+    t_end: f64,
+    dt: f64,
+    population: &[(f64, f64)],
+    infected: &[(f64, f64)],
+    incidence: &[(f64, f64)],
+) -> anyhow::Result<std::path::PathBuf> {
+    write_model_debug_log(
+        "seirs",
+        out_dir,
+        run_id,
+        iso3,
+        year,
+        seed_infections,
+        t_end,
+        dt,
+        population,
+        infected,
+        incidence,
+    )
+}
+
