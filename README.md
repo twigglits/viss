@@ -100,5 +100,4 @@ In the future, VISS will support a variety of interventions that can be used to 
 - Antiretroviral therapy (ART)
 - Vaccination
 - Voluntary Male Circumcision (VMMC)
-- Voluntary Female Circumcision (VFC)
 - Condom-use
