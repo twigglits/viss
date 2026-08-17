@@ -81,18 +81,17 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: patch
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
+          fetch-depth: 0          # tags are needed to work out the current version
+      - name: Tag and release the next patch version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          release_name: Release ${{ steps.tag_version.outputs.new_tag }}
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          latest=${latest:-v0.0.0}
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          next="v${major}.${minor}.$((patch + 1))"
+          echo "latest=$latest next=$next"
+          git tag "$next"
+          git push origin "$next"
+          gh release create "$next" --title "Release $next" --generate-notes
