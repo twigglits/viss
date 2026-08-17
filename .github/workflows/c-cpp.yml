@@ -42,22 +42,45 @@ jobs:
       - name: Push Docker image (versioned)
         run: docker push ghcr.io/${{ github.repository }}:${{ env.SHORT_SHA }}
 
+  # Ships the image the build job just published. Backend only — the frontend has its
+  # own deploy in the viss-frontend repo, and neither touches the other.
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        env:
+          KEY: ${{ secrets.PROD_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$KEY" || { echo "PROD_SSH_KEY is empty"; exit 1; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+          # The server pins this key to a forced command; the command sent is ignored.
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes twigg@157.90.172.175 deploy
+
   increment-version:
     name: Increment Version and Release
     needs: build
     runs-on: ubuntu-latest
+    # Lets the built-in token push the tag and cut the release. VISS_RELEASE_TOKEN
+    # expired 2026-06-17; GITHUB_TOKEN is minted per run and cannot.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Bump version and push tag
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.1
         with:
-          github_token: ${{ secrets.VISS_RELEASE_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.VISS_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
           release_name: Release ${{ steps.tag_version.outputs.new_tag }}
