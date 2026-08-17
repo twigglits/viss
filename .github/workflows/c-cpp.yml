@@ -10,6 +10,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Try the built-in token for ghcr: it cannot expire, unlike VISS_CT_TOKEN which
+    # lapsed 2026-06-17. Works only if this package grants its own repo Actions
+    # access; the frontend package does not, which is why that one still needs a PAT.
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
       - name: Set up Rust toolchain
@@ -30,13 +37,15 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.VISS_CT_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set short SHA
         id: vars
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
       - name: Build Docker image (latest and versioned)
         run: |
-          docker build --no-cache -f vrust/Dockerfile -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ env.SHORT_SHA }} vrust
+          docker build --no-cache -f vrust/Dockerfile \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ env.SHORT_SHA }} vrust
       - name: Push Docker image (latest)
         run: docker push ghcr.io/${{ github.repository }}:latest
       - name: Push Docker image (versioned)
