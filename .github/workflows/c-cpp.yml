@@ -10,12 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Try the built-in token for ghcr: it cannot expire, unlike VISS_CT_TOKEN which
-    # lapsed 2026-06-17. Works only if this package grants its own repo Actions
-    # access; the frontend package does not, which is why that one still needs a PAT.
     permissions:
       contents: read
-      packages: write
 
     steps:
       - uses: actions/checkout@v4
@@ -32,12 +28,22 @@ jobs:
         working-directory: vrust
         run: cargo test --workspace --all-targets -- --nocapture
 
+      # Installation tokens are minted per run and expire in an hour, so there is no
+      # credential left lying around to lapse. GITHUB_TOKEN cannot be used: this
+      # package was created by a PAT before the repository link existed, so it grants
+      # no Actions access and rejects that token with permission_denied.
+      - name: Mint a token from the viss-ci-publisher app
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: x-access-token
+          password: ${{ steps.app-token.outputs.token }}
       - name: Set short SHA
         id: vars
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
