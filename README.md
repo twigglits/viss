@@ -22,6 +22,7 @@ cargo clean && cargo update && cargo build --release
 
 ## Features
 - Deterministic SEIRS with age structure and configurable Erlang stages (k_E, k_I)
+- Stochastic SEIRS via the Gillespie direct-method SSA (exact CTMC), sharing the same config as the ODE
 - Contact-matrix-based force of infection (Prem et al.-style)
 - Piecewise-constant time-varying transmission multiplier m(t)
 - Simple RK4 integrator for speed and determinism
@@ -41,7 +42,6 @@ cargo run --release --bin single_region
 These can be replaced later with aggregated WorldPop outputs.
 
 ## Roadmap
-- Add stochastic CTMC (Gillespie)
 - Add observation model (delayed NegBinon cases)
 - Add multi-region coupling
 - Add tests and benchmarking
@@ -90,6 +90,53 @@ Term definitions (typical units are per-day rates):
 The infection (incidence) term **β (S I / N)** corresponds to frequency-dependent transmission, i.e. the force of infection is λ(t) = β I/N and incidence is λS.
 
 Summing the four equations gives dN/dt = (b − d) N. In particular, when b = d the total population remains constant.
+
+### Stochastic SEIRS (Gillespie direct method)
+
+The deterministic model above tracks expected compartment sizes. At small population
+sizes, early in an outbreak, or when the question is "how often does this die out?",
+the expectation is the wrong answer — VISS also provides the exact stochastic process
+the ODE is the mean-field limit of.
+
+The state is a vector of integer counts, and each ODE flow becomes a reaction channel
+that moves exactly one individual. For the age-structured model with Erlang stages the
+channels are:
+
+| Channel | Transition | Propensity |
+|---|---|---|
+| Infection | S_a → E_{a,1} | λ_a(t) · S_a |
+| Latent progression | E_{a,j} → E_{a,j+1} (last → I_{a,1}) | k_E σ · E_{a,j} |
+| Infectious progression | I_{a,j} → I_{a,j+1} (last → R_a) | k_I γ · I_{a,j} |
+| Waning immunity | R_a → S_a | ω · R_a |
+| Vaccination | S_a → R_a | ρ_a · S_a |
+| Death | X_a → ∅ | μ · X_a (plus μ_extra on I stages) |
+| Birth | ∅ → S_1 | Σ_a f_a · ff · N_a |
+| Aging | X_a → X_{a+1} | α_a · X_a |
+
+with the same force of infection as the ODE, λ_a(t) = β(t) Σ_b C[a][b] I_b / N_b.
+
+Given the total propensity a₀ = Σ_k a_k, Gillespie's direct method (1976/1977) draws
+
+```text
+τ ~ Exponential(a₀)                      time to the next event
+P(channel k fires) = a_k / a₀            which event it is
+```
+
+then applies that channel's ±1 update and repeats. This is exact for the underlying
+continuous-time Markov chain — not a discretisation of it — so the only approximation
+is that a piecewise-constant β(t) is held fixed between events.
+
+```rust
+let mut model = vrust::GillespieModel::new(cfg, /* seed */ 42)?;
+let mut state = vrust::SeirsState::init_from_seeding(&model.cfg, &seeding);
+let trajectory = model.simulate(&mut state, 0.0, 365.0, 1.0);
+```
+
+Runs are seeded and reproducible, and the output is sampled on the same fixed grid as
+`SeirsModel::simulate`, so a stochastic ensemble and the deterministic run can be
+compared directly. Cost scales with the number of events, so whole-country populations
+belong in the ODE; the SSA is for small populations, early-outbreak dynamics, and
+fade-out probabilities.
 
 ### Interventions Roadmap
 

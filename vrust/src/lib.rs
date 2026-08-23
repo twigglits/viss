@@ -3,4 +3,5 @@ pub mod model;
 pub mod io;
 pub mod calibration;
 
+pub use model::gillespie::GillespieModel;
 pub use model::seirs::{SeirsConfig, SeirsState, SeirsModel};
