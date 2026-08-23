@@ -93,7 +93,7 @@ impl SeirsState {
     }
 }
 
-fn indices(cfg: &SeirsConfig, a: usize) -> (usize, usize, usize, usize) {
+pub(crate) fn indices(cfg: &SeirsConfig, a: usize) -> (usize, usize, usize, usize) {
     // Layout per age block:
     // S | E1..Ek | I1..Ik | R
     let block = 1 + cfg.k_e + cfg.k_i + 1;
