@@ -25,8 +25,15 @@ jobs:
         with:
           workspaces: |
             vrust
+      # vrust/.cargo/config.toml sets -C target-cpu=native, which is right on a developer's
+      # own machine and wrong here: the cache is shared across runners with different CPUs,
+      # so artifacts built where AVX-512 exists get reused where it does not, and the test
+      # binary dies with SIGILL. Empty RUSTFLAGS overrides the config file and keys the
+      # cache to a portable build.
       - name: Run Rust tests (vrust)
         working-directory: vrust
+        env:
+          RUSTFLAGS: ""
         run: cargo test --workspace --all-targets -- --nocapture
 
       # GITHUB_TOKEN is minted per run and cannot expire. It works because the package's
