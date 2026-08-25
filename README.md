@@ -29,6 +29,7 @@ cargo clean && cargo update && cargo build --release
 - Calibration helper: compute beta0 for a target R0 using power iteration (spectral radius)
 - CSV loaders for population by age and contact matrix
 - Example: single-region, multi-age simulation
+- Replayable run configs: every input of a hosted run, reproducible offline with `vrust_replay`
 
 ## Getting started
 ```bash
@@ -40,6 +41,28 @@ cargo run --release --bin single_region
 - Contact matrix CSV: square matrix with header row/col optional (will try to parse numeric cells)
 
 These can be replaced later with aggregated WorldPop outputs.
+
+## Reproducing a hosted run
+
+A VISS deployment can hand you the exact input of any run it has done. The engine is open
+source; the deployment around it need not be, so the config carries every input rather than
+pointing at a database you cannot reach — rates, contact matrix, age pyramid, fertility and
+aging schedules, initial seeding, and the RNG seed for stochastic runs.
+
+```bash
+# Download a run's input config and its output, then reproduce the run locally
+curl -o input.json  https://<host>/api/run_config/<run_id>
+curl -o hosted.csv  https://<host>/api/run_output/<run_id>
+
+cargo run --bin vrust_replay -- input.json > local.csv
+diff hosted.csv local.csv     # identical, including for seeded Gillespie runs
+```
+
+`vrust_replay` reads the config from a file or stdin and writes
+`t_days,population,infected,incidence_pct` — the same columns the hosted run serves. It
+touches no database and no network. A deterministic `seirs` config replays exactly; a
+`gillespie` config replays exactly given its `rng_seed`, and is refused without one rather
+than returning a different sample path that looks like a reproduction.
 
 ## Roadmap
 - Add observation model (delayed NegBinon cases)
