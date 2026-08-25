@@ -17,7 +17,8 @@ use vrust::calibration::beta0_from_r0;
 use vrust::io::age_pyramid_pg::{load_age_pyramid_5yr_pg, AGE_BINS_5YR};
 use vrust::io::contact_synth::synthetic_contact_matrix;
 use vrust::io::debug_log::write_seirs_debug_log;
-use vrust::model::seirs::{SeirsConfig, SeirsModel, SeirsState};
+use vrust::io::run_config::RunConfig;
+use vrust::model::seirs::SeirsConfig;
 
 #[derive(Clone)]
 struct AppState {
@@ -126,6 +127,10 @@ struct RunRequest {
     seed_infections: Option<f64>,
     t_end_days: Option<f64>,
     dt_days: Option<f64>,
+    /// "seirs" (deterministic ODE, default) or "gillespie" (exact stochastic SSA).
+    model: Option<String>,
+    /// SSA only. Fixed seed makes a stochastic run reproducible; omitted means a fresh one.
+    rng_seed: Option<u64>,
     debug: Option<bool>,
     debug_id: Option<String>,
 }
@@ -134,6 +139,7 @@ struct RunRequest {
 struct LatestQuery {
     iso3: Option<String>,
     year: Option<i32>,
+    model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -195,6 +201,7 @@ struct RunResponse {
     end_population: f64,
     time: f64,
     seed: f64,
+    model: String,
     population_timeline_key: String,
     hiv_infections_timeline_key: String,
     hiv_incidence_timeline_key: String,
@@ -215,6 +222,8 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/run_simulation", post(run_simulation))
+        .route("/run_config/:run_id", get(run_config_by_id))
+        .route("/run_output/:run_id", get(run_output_by_id))
         .route("/demography/asfr", get(get_asfr))
         .route(
             "/api/v1/data/indicators/:indicator/locations/:location/start/:start/end/:end",
@@ -361,13 +370,23 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
     let t_end = req.t_end_days.unwrap_or(365.0).max(1.0);
     let dt = req.dt_days.unwrap_or(0.25).max(1e-6);
 
+    // Rejected up front: silently running SEIRS for an unknown name is how a UI ends up
+    // offering models the engine does not have.
+    let model_name = req.model.clone().unwrap_or_else(|| "seirs".to_string()).trim().to_lowercase();
+    if model_name != "seirs" && model_name != "gillespie" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            json!({"return_code": 1, "error": format!("unknown model '{model_name}' (expected 'seirs' or 'gillespie')")}),
+        ));
+    }
+
     let debug = req.debug.unwrap_or(false);
     let debug_id = req.debug_id.clone().unwrap_or_default();
 
     let run_id = if debug && !debug_id.trim().is_empty() {
-        format!("{}-{}-{}", iso3, year, debug_id.trim())
+        format!("{}-{}-{}-{}", iso3, year, model_name, debug_id.trim())
     } else {
-        format!("{}-{}-{}", iso3, year, chronoish_now_millis())
+        format!("{}-{}-{}-{}", iso3, year, model_name, chronoish_now_millis())
     };
 
     // Build model input
@@ -422,13 +441,6 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         vacc_rate: None,
     };
 
-    let model = SeirsModel::new(cfg).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
-        )
-    })?;
-
     // Seed infections proportional to population
     let total_pop: f64 = pop.iter().sum();
     let mut seeding = vec![0.0; n_age];
@@ -438,15 +450,47 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         }
     }
 
-    let mut state = SeirsState::init_from_seeding(&model.cfg, &seeding);
-    let traj = model.simulate(&mut state, 0.0, t_end, dt);
+    // An SSA run only reproduces with the seed it actually used, so pin it here and store
+    // it rather than letting the model invent one privately.
+    let rng_seed = if model_name == "gillespie" {
+        Some(req.rng_seed.unwrap_or(chronoish_now_millis() as u64))
+    } else {
+        None
+    };
+
+    // The same struct the /run_config download serves and `vrust_replay` consumes — the
+    // hosted run and a user's local replay therefore execute identical code.
+    let run_config = RunConfig::new(
+        &model_name,
+        &iso3,
+        year,
+        t_end,
+        dt,
+        rng_seed,
+        seeding.clone(),
+        cfg.clone(),
+    );
+
+    let traj = run_config.simulate().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            json!({"return_code": 1, "error": format!("invalid model config: {e}")}),
+        )
+    })?;
+
+    let run_config_json = serde_json::to_value(&run_config).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"return_code": 2, "error": format!("failed to serialise run config: {e}")}),
+        )
+    })?;
 
     // Convert to timeline arrays: [[t, value], ...]
     let mut population_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
     let mut infected_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
     let mut incidence_timeline: Vec<(f64, f64)> = Vec::with_capacity(traj.len());
     for (t, y) in &traj {
-        let (s_tot, e_tot, i_tot, r_tot) = totals(&model.cfg, y);
+        let (s_tot, e_tot, i_tot, r_tot) = totals(&cfg, y);
         let pop_tot = (s_tot + e_tot + i_tot + r_tot).ceil();
         let infected_tot = i_tot.ceil();
         population_timeline.push((*t, pop_tot));
@@ -480,6 +524,8 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         &run_id,
         &iso3,
         year,
+        &model_name,
+        &run_config_json,
         seed_infections,
         t_end,
         dt,
@@ -506,6 +552,7 @@ fn run_simulation_sync(pg_conn_str: &str, req: RunRequest) -> Result<RunResponse
         end_population,
         time: t_end,
         seed: seed_infections,
+        model: model_name.clone(),
         population_timeline_key: format!("seirs:{}:population", run_id),
         hiv_infections_timeline_key: format!("seirs:{}:infected", run_id),
         hiv_incidence_timeline_key: format!("seirs:{}:incidence", run_id),
@@ -626,7 +673,8 @@ async fn population_latest(State(st): State<AppState>, Query(q): Query<LatestQue
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "population"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "population"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -638,7 +686,8 @@ async fn hiv_latest(State(st): State<AppState>, Query(q): Query<LatestQuery>) ->
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "infected"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "infected"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -650,7 +699,8 @@ async fn incidence_latest(State(st): State<AppState>, Query(q): Query<LatestQuer
     let pg_conn_str = st.pg_conn_str.clone();
     let iso3 = q.iso3.unwrap_or_else(|| "SUR".to_string());
     let year = q.year.unwrap_or(2025);
-    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, "incidence"));
+    let model = q.model.unwrap_or_else(|| "seirs".to_string());
+    let join = tokio::task::spawn_blocking(move || fetch_latest_series(&pg_conn_str, &iso3, year, &model, "incidence"));
     match join.await {
         Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
@@ -688,11 +738,87 @@ async fn incidence_by_key(State(st): State<AppState>, Path(key): Path<String>) -
     }
 }
 
+/// The exact, self-contained input of a stored run: rates, contact matrix, age pyramid,
+/// fertility and aging schedules, seeding and RNG seed. Feed it to `vrust_replay` in the
+/// open-source engine repository to reproduce the run without this deployment.
+async fn run_config_by_id(State(st): State<AppState>, Path(run_id): Path<String>) -> impl IntoResponse {
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join = tokio::task::spawn_blocking(move || fetch_run_config(&pg_conn_str, &run_id));
+    match join.await {
+        Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("join error: {e}")}))).into_response(),
+    }
+}
+
+/// The run's output as CSV, in the same columns `vrust_replay` prints, so a local replay
+/// can be diffed against the hosted run line for line.
+async fn run_output_by_id(State(st): State<AppState>, Path(run_id): Path<String>) -> impl IntoResponse {
+    let pg_conn_str = st.pg_conn_str.clone();
+    let name = run_id.clone();
+    let join = tokio::task::spawn_blocking(move || fetch_run_csv(&pg_conn_str, &run_id));
+    match join.await {
+        Ok(Ok(csv)) => (
+            StatusCode::OK,
+            [
+                (axum::http::header::CONTENT_TYPE, "text/csv; charset=utf-8".to_string()),
+                (
+                    axum::http::header::CONTENT_DISPOSITION,
+                    format!("attachment; filename=\"viss-output-{name}.csv\""),
+                ),
+            ],
+            csv,
+        )
+            .into_response(),
+        Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("join error: {e}")}))).into_response(),
+    }
+}
+
+fn fetch_run_config(pg_conn_str: &str, run_id: &str) -> Result<serde_json::Value, String> {
+    let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
+    let row = client
+        .query_opt("SELECT params FROM seirs_runs WHERE id=$1", &[&run_id])
+        .map_err(|e| e.to_string())?;
+    match row {
+        // Runs stored before params was filled in cannot be replayed; say so plainly
+        // instead of handing back an empty file that looks like a config.
+        Some(r) => r
+            .get::<_, Option<serde_json::Value>>(0)
+            .ok_or_else(|| "this run predates stored input configs".to_string()),
+        None => Err("no run found".to_string()),
+    }
+}
+
+fn fetch_run_csv(pg_conn_str: &str, run_id: &str) -> Result<String, String> {
+    let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
+    let rows = client
+        .query(
+            "SELECT t, population, infected, COALESCE(incidence_pct, CASE WHEN population > 0 THEN (infected / population) * 100.0 ELSE 0 END) FROM seirs_series_points WHERE run_id=$1 ORDER BY t ASC",
+            &[&run_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if rows.is_empty() {
+        return Err("no points found".to_string());
+    }
+    let mut out = String::from("t_days,population,infected,incidence_pct\n");
+    for r in rows {
+        let t: f64 = r.get(0);
+        let population: f64 = r.get(1);
+        let infected: f64 = r.get(2);
+        let incidence: f64 = r.get(3);
+        out.push_str(&format!("{t},{population},{infected},{incidence}\n"));
+    }
+    Ok(out)
+}
+
 fn persist_run(
     pg_conn_str: &str,
     run_id: &str,
     iso3: &str,
     year: i32,
+    model: &str,
+    run_config: &serde_json::Value,
     seed_infections: f64,
     t_end: f64,
     dt: f64,
@@ -740,10 +866,19 @@ fn persist_run(
         )
         .context("alter seirs_series_points add incidence_pct failed")?;
 
+    // Runs predating the model column were all deterministic SEIRS.
+    client
+        .execute("ALTER TABLE seirs_runs ADD COLUMN IF NOT EXISTS model TEXT", &[])
+        .context("alter seirs_runs add model failed")?;
+    client
+        .execute("UPDATE seirs_runs SET model = 'seirs' WHERE model IS NULL", &[])
+        .context("backfill seirs_runs.model failed")?;
+
     let _ = (seed_infections, t_end, dt);
+    // params holds the whole replayable input, which is what /run_config serves back.
     client.execute(
-        "INSERT INTO seirs_runs (id, iso3, year, params) VALUES ($1,$2,$3,NULL) ON CONFLICT (id) DO NOTHING",
-        &[&run_id, &iso3, &year],
+        "INSERT INTO seirs_runs (id, iso3, year, model, params) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE SET params = EXCLUDED.params",
+        &[&run_id, &iso3, &year, &model, run_config],
     )
     .context("insert into seirs_runs failed")?;
 
@@ -767,13 +902,15 @@ fn persist_run(
     Ok(())
 }
 
-fn fetch_latest_series(pg_conn_str: &str, iso3: &str, year: i32, kind: &str) -> Result<Vec<[f64; 2]>, String> {
+fn fetch_latest_series(pg_conn_str: &str, iso3: &str, year: i32, model: &str, kind: &str) -> Result<Vec<[f64; 2]>, String> {
     let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
 
+    // Latest run *of that model* — otherwise a stochastic run steals the fallback from a
+    // deterministic one and the chart silently shows the wrong trajectory.
     let row = client
         .query_opt(
-            "SELECT id FROM seirs_runs WHERE iso3=$1 AND year=$2 ORDER BY created_at DESC LIMIT 1",
-            &[&iso3.to_uppercase(), &year],
+            "SELECT id FROM seirs_runs WHERE iso3=$1 AND year=$2 AND COALESCE(model,'seirs')=$3 ORDER BY created_at DESC LIMIT 1",
+            &[&iso3.to_uppercase(), &year, &model.trim().to_lowercase()],
         )
         .map_err(|e| e.to_string())?;
 
