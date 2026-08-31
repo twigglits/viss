@@ -148,6 +148,29 @@ struct FlightVolumesQuery {
     limit: Option<i64>,
 }
 
+#[derive(Debug, Deserialize)]
+struct FlightRoutesQuery {
+    days: Option<i32>,
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct FlightRoute {
+    direction: String,
+    origin_icao: String,
+    origin_iso3: String,
+    origin_name: Option<String>,
+    origin_lat: f64,
+    origin_lon: f64,
+    dest_icao: String,
+    dest_iso3: String,
+    dest_name: Option<String>,
+    dest_lat: f64,
+    dest_lon: f64,
+    flights: i64,
+    passengers: i64,
+}
+
 #[derive(Serialize)]
 struct FlightFlow {
     partner_iso3: String,
@@ -249,6 +272,7 @@ async fn main() {
         .route("/hiv_infections_timeline/:key", get(hiv_by_key))
         .route("/hiv_incidence_timeline/:key", get(incidence_by_key))
         .route("/flight_volumes/:iso3", get(flight_volumes))
+        .route("/flight_routes/:iso3", get(flight_routes))
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse().expect("invalid HOST/PORT");
@@ -870,6 +894,118 @@ fn fetch_flight_volumes(
             "outbound_flights": out_flights,
             "outbound_passengers": out_pax,
         }
+    }))
+}
+
+/// The airport pairs behind the country-pair volumes, with both ends' coordinates, so a
+/// map can draw the route rather than a line between two country centroids.
+async fn flight_routes(
+    State(st): State<AppState>,
+    Path(iso3): Path<String>,
+    Query(q): Query<FlightRoutesQuery>,
+) -> impl IntoResponse {
+    let iso3 = iso3.trim().to_uppercase();
+    if iso3.len() != 3 || !iso3.chars().all(|c| c.is_ascii_alphabetic()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "iso3 must be a 3-letter code"})),
+        )
+            .into_response();
+    }
+    let days = q.days.unwrap_or(30).clamp(1, 365);
+    let limit = q.limit.unwrap_or(100).clamp(1, 1000);
+
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join =
+        tokio::task::spawn_blocking(move || fetch_flight_routes(&pg_conn_str, &iso3, days, limit));
+    match join.await {
+        Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("join error: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+fn fetch_flight_routes(
+    pg_conn_str: &str,
+    iso3: &str,
+    days: i32,
+    limit: i64,
+) -> Result<serde_json::Value, String> {
+    let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
+
+    // An airport with no coordinates cannot be drawn, so it is not returned. Domestic
+    // flights never enter flight_routes -- the ingest drops them -- so "destination is
+    // this country" is a complete test for an arrival.
+    let rows = client
+        .query(
+            "SELECT CASE WHEN da.iso3 = $1 THEN 'in' ELSE 'out' END AS direction, \
+                    r.origin_icao, oa.iso3, oa.name, oa.latitude, oa.longitude, \
+                    r.dest_icao, da.iso3, da.name, da.latitude, da.longitude, \
+                    SUM(r.flight_count)::bigint, \
+                    SUM(r.estimated_passengers)::bigint AS pax \
+               FROM flight_routes r \
+               JOIN airports oa ON oa.icao_code = r.origin_icao \
+               JOIN airports da ON da.icao_code = r.dest_icao \
+              WHERE (oa.iso3 = $1 OR da.iso3 = $1) \
+                AND r.date >= CURRENT_DATE - $2::int \
+                AND oa.latitude IS NOT NULL AND oa.longitude IS NOT NULL \
+                AND da.latitude IS NOT NULL AND da.longitude IS NOT NULL \
+              GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 \
+              ORDER BY pax DESC \
+              LIMIT $3",
+            &[&iso3, &days, &limit],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let routes: Vec<FlightRoute> = rows
+        .iter()
+        .map(|r| FlightRoute {
+            direction: r.get(0),
+            origin_icao: r.get(1),
+            origin_iso3: r.get(2),
+            origin_name: r.get(3),
+            origin_lat: r.get(4),
+            origin_lon: r.get(5),
+            dest_icao: r.get(6),
+            dest_iso3: r.get(7),
+            dest_name: r.get(8),
+            dest_lat: r.get(9),
+            dest_lon: r.get(10),
+            flights: r.get(11),
+            passengers: r.get(12),
+        })
+        .collect();
+
+    // flight_routes only started being written once the ingest stopped discarding the
+    // departure airport, so its coverage lags the country-pair table. Say which dates
+    // are actually behind these lines rather than let a caller assume the window.
+    let cov = client
+        .query_one(
+            "SELECT MIN(r.date)::text, MAX(r.date)::text, COUNT(DISTINCT r.date)::bigint \
+               FROM flight_routes r \
+               JOIN airports oa ON oa.icao_code = r.origin_icao \
+               JOIN airports da ON da.icao_code = r.dest_icao \
+              WHERE (oa.iso3 = $1 OR da.iso3 = $1) \
+                AND r.date >= CURRENT_DATE - $2::int",
+            &[&iso3, &days],
+        )
+        .map_err(|e| e.to_string())?;
+    let from: Option<String> = cov.get(0);
+    let to: Option<String> = cov.get(1);
+    let days_covered: i64 = cov.get(2);
+
+    Ok(json!({
+        "iso3": iso3,
+        "window_days": days,
+        "days_covered": days_covered,
+        "from": from,
+        "to": to,
+        "source": "OPENSKY",
+        "routes": routes,
     }))
 }
 
