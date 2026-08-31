@@ -143,6 +143,19 @@ struct LatestQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct FlightVolumesQuery {
+    days: Option<i32>,
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct FlightFlow {
+    partner_iso3: String,
+    flights: i64,
+    passengers: i64,
+}
+
+#[derive(Debug, Deserialize)]
 struct UnDataPath {
     indicator: String,
     location: String,
@@ -235,6 +248,7 @@ async fn main() {
         .route("/population_timeline/:key", get(population_by_key))
         .route("/hiv_infections_timeline/:key", get(hiv_by_key))
         .route("/hiv_incidence_timeline/:key", get(incidence_by_key))
+        .route("/flight_volumes/:iso3", get(flight_volumes))
         .with_state(state);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse().expect("invalid HOST/PORT");
@@ -736,6 +750,127 @@ async fn incidence_by_key(State(st): State<AppState>, Path(key): Path<String>) -
         Ok(Err(e)) => (StatusCode::NOT_FOUND, Json(json!({"error": e}))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("join error: {e}")}))).into_response(),
     }
+}
+
+/// Country-pair flight volumes from the OpenSky ingest, aggregated over a trailing window.
+/// The ingest rotates through the world's airports on a daily budget, so a single date is a
+/// sample rather than a census — the window is what makes the numbers mean anything.
+async fn flight_volumes(
+    State(st): State<AppState>,
+    Path(iso3): Path<String>,
+    Query(q): Query<FlightVolumesQuery>,
+) -> impl IntoResponse {
+    let iso3 = iso3.trim().to_uppercase();
+    if iso3.len() != 3 || !iso3.chars().all(|c| c.is_ascii_alphabetic()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "iso3 must be a 3-letter code"})),
+        )
+            .into_response();
+    }
+    let days = q.days.unwrap_or(30).clamp(1, 365);
+    let limit = q.limit.unwrap_or(10).clamp(1, 200);
+
+    let pg_conn_str = st.pg_conn_str.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        fetch_flight_volumes(&pg_conn_str, &iso3, days, limit)
+    });
+    match join.await {
+        Ok(Ok(v)) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("join error: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
+fn fetch_flight_volumes(
+    pg_conn_str: &str,
+    iso3: &str,
+    days: i32,
+    limit: i64,
+) -> Result<serde_json::Value, String> {
+    let mut client = Client::connect(pg_conn_str, NoTls).map_err(|e| e.to_string())?;
+
+    let rows = client
+        .query(
+            "SELECT 'in' AS direction, origin_iso3 AS partner, \
+                    COALESCE(SUM(flight_count), 0)::bigint, \
+                    COALESCE(SUM(estimated_passengers), 0)::bigint \
+               FROM flight_passenger_volumes \
+              WHERE destination_iso3 = $1 AND date >= CURRENT_DATE - $2::int \
+              GROUP BY 1, 2 \
+              UNION ALL \
+             SELECT 'out', destination_iso3, \
+                    COALESCE(SUM(flight_count), 0)::bigint, \
+                    COALESCE(SUM(estimated_passengers), 0)::bigint \
+               FROM flight_passenger_volumes \
+              WHERE origin_iso3 = $1 AND date >= CURRENT_DATE - $2::int \
+              GROUP BY 1, 2 \
+              ORDER BY 4 DESC",
+            &[&iso3, &days],
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut inbound: Vec<FlightFlow> = Vec::new();
+    let mut outbound: Vec<FlightFlow> = Vec::new();
+    let (mut in_flights, mut in_pax, mut out_flights, mut out_pax) = (0_i64, 0_i64, 0_i64, 0_i64);
+
+    for r in rows {
+        let direction: String = r.get(0);
+        let flow = FlightFlow {
+            partner_iso3: r.get(1),
+            flights: r.get(2),
+            passengers: r.get(3),
+        };
+        if direction == "in" {
+            in_flights += flow.flights;
+            in_pax += flow.passengers;
+            if (inbound.len() as i64) < limit {
+                inbound.push(flow);
+            }
+        } else {
+            out_flights += flow.flights;
+            out_pax += flow.passengers;
+            if (outbound.len() as i64) < limit {
+                outbound.push(flow);
+            }
+        }
+    }
+
+    // The window asked for is not the window covered: the ingest is still filling in.
+    // Report the dates actually behind these numbers so the UI can say so.
+    let cov = client
+        .query_one(
+            "SELECT MIN(date)::text, MAX(date)::text, COUNT(DISTINCT date)::bigint \
+               FROM flight_passenger_volumes \
+              WHERE (origin_iso3 = $1 OR destination_iso3 = $1) \
+                AND date >= CURRENT_DATE - $2::int",
+            &[&iso3, &days],
+        )
+        .map_err(|e| e.to_string())?;
+    let from: Option<String> = cov.get(0);
+    let to: Option<String> = cov.get(1);
+    let days_covered: i64 = cov.get(2);
+
+    Ok(json!({
+        "iso3": iso3,
+        "window_days": days,
+        "days_covered": days_covered,
+        "from": from,
+        "to": to,
+        "source": "OPENSKY",
+        "inbound": inbound,
+        "outbound": outbound,
+        "totals": {
+            "inbound_flights": in_flights,
+            "inbound_passengers": in_pax,
+            "outbound_flights": out_flights,
+            "outbound_passengers": out_pax,
+        }
+    }))
 }
 
 /// The exact, self-contained input of a stored run: rates, contact matrix, age pyramid,
